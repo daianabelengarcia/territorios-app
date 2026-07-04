@@ -201,7 +201,7 @@ export default function InteractiveMap({
           const svgX = cv.x + (locationX / W) * cv.w;
           const svgY = cv.y + (locationY / H) * cv.h;
           const hit  = findFeatureAt(svgX, svgY, featuresRef.current);
-          if (hit) onPressRef.current(hit);
+          if (hit) setTimeout(() => onPressRef.current(hit), 80);
         }
       }
     },
