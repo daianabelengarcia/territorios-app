@@ -1,9 +1,10 @@
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, TouchableOpacity, Alert } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
+import { supabase } from '../lib/supabase';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import ArgentinaScreen from '../screens/ArgentinaScreen';
 import BuenosAiresScreen from '../screens/BuenosAiresScreen';
@@ -33,6 +34,23 @@ const ACTIVE   = '#0055A5';
 const INACTIVE = '#9BAFC4';
 const PRIMARY  = '#003366';
 
+function LogoutButton() {
+  const handleLogout = () => {
+    Alert.alert('Cerrar sesión', '¿Querés salir de tu cuenta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: () => supabase.auth.signOut() },
+    ]);
+  };
+  return (
+    <TouchableOpacity onPress={handleLogout} style={{ marginRight: 14, padding: 4 }}>
+      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+        <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#FFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M16 17l5-5-5-5M21 12H9" stroke="#FFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    </TouchableOpacity>
+  );
+}
+
 export default function AppNavigator() {
   const insets = useSafeAreaInsets();
   // En Android con barra de navegación gestual el inset bottom puede ser 0 o 24+
@@ -57,6 +75,7 @@ export default function AppNavigator() {
         headerStyle:      { backgroundColor: PRIMARY },
         headerTintColor:  '#FFFFFF',
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+        headerRight: () => <LogoutButton />,
       }}
     >
       <Tab.Screen
