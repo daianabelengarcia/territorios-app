@@ -1,4 +1,4 @@
-export type MapType = 'argentina' | 'buenosaires';
+export type MapType = 'argentina' | 'buenosaires' | 'amba';
 
 export type Category = 'Charlas' | 'Centros Juveniles' | 'Reuniones' | 'Otra';
 

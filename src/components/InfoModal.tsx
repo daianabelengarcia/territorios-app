@@ -97,6 +97,18 @@ export default function InfoModal({
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Evita que el backdrop cierre el modal inmediatamente al abrirse.
+  // En navegadores móviles el evento click llega ~300ms después del toque,
+  // justo cuando el modal ya está visible. Los 400ms de gracia lo neutralizan.
+  const backdropReady = React.useRef(false);
+  React.useEffect(() => {
+    if (visible) {
+      backdropReady.current = false;
+      const t = setTimeout(() => { backdropReady.current = true; }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
+
   // Form fields
   const [category, setCategory]           = useState<Category>('Charlas');
   const [customCategory, setCustomCategory] = useState('');
@@ -184,7 +196,14 @@ export default function InfoModal({
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={view === 'form' ? undefined : onClose} />
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={() => {
+            if (!backdropReady.current) return;
+            if (view !== 'form') onClose();
+          }}
+        />
 
         <View style={styles.sheet}>
           <View style={styles.handle} />

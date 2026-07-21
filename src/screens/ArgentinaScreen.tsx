@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Alert, ActivityIndicator, useWindowDimensions, ScrollView,
+  Alert, ActivityIndicator, useWindowDimensions, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,9 +12,11 @@ import { saveEntry, deleteEntry, getAllEntries } from '../storage/database';
 import { exportToExcel } from '../utils/exportExcel';
 import argentinaGeoJSON from '../data/argentina-geojson';
 
+const PRIMARY = '#003366';
+
 export default function ArgentinaScreen() {
-  const { width } = useWindowDimensions();
-  const mapWidth = width - 24;
+  const { width, height } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
 
   const [entries, setEntries]         = useState<Record<string, VisitEntry[]>>({});
   const [loadingData, setLoadingData] = useState(true);
@@ -77,77 +79,149 @@ export default function ArgentinaScreen() {
   const territoriesCount = Object.keys(entries).length;
   const totalEntries     = Object.values(entries).reduce((s, arr) => s + arr.length, 0);
 
+  const mapPanelWidth  = isDesktop ? Math.min(width * 0.62, 760) : width - 24;
+  const mapPanelHeight = isDesktop ? height - 120 : mapHeight;
+
+  // ── Sub-components ──────────────────────────────────────────────────────────
+  const StatsBar = () => (
+    <View style={[styles.statsBar, isDesktop && styles.statsBarDesktop]}>
+      <View style={styles.statItem}>
+        <Text style={styles.statNumber}>24</Text>
+        <Text style={styles.statLabel}>Jurisdicciones</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={[styles.statNumber, { color: '#1565C0' }]}>{territoriesCount}</Text>
+        <Text style={styles.statLabel}>Con actividad</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <View style={styles.statItem}>
+        <Text style={[styles.statNumber, { color: '#6A1B9A' }]}>{totalEntries}</Text>
+        <Text style={styles.statLabel}>Registros</Text>
+      </View>
+      <View style={styles.statDivider} />
+      <TouchableOpacity
+        style={[styles.exportBtn, exporting && { opacity: 0.6 }]}
+        onPress={handleExport}
+        disabled={exporting}
+      >
+        {exporting
+          ? <ActivityIndicator size="small" color="#FFF" />
+          : <Text style={styles.exportBtnText}>📤</Text>
+        }
+      </TouchableOpacity>
+    </View>
+  );
+
+  const FilterBar = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.filterBar}
+      contentContainerStyle={styles.filterContent}
+    >
+      <TouchableOpacity
+        style={[styles.filterChip, !activeFilter && styles.filterChipAll]}
+        onPress={() => setActiveFilter(null)}
+      >
+        <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
+      </TouchableOpacity>
+      {CATEGORIES.map(cat => {
+        const col    = CATEGORY_COLORS[cat];
+        const active = activeFilter === cat;
+        return (
+          <TouchableOpacity
+            key={cat}
+            style={[styles.filterChip, active && { backgroundColor: col.fill, borderColor: col.stroke }]}
+            onPress={() => setActiveFilter(active ? null : cat)}
+          >
+            <Text style={[styles.filterChipText, active && { color: col.chip, fontWeight: '700' }]}>
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
+  // ── Desktop layout ─────────────────────────────────────────────────────────
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopRoot}>
+        <StatsBar />
+        <View style={styles.desktopBody}>
+          <View style={[styles.desktopMapPanel, { width: mapPanelWidth }]}>
+            {loadingData ? (
+              <ActivityIndicator size="large" color={PRIMARY} style={{ flex: 1 }} />
+            ) : (
+              <InteractiveMap
+                geojson={argentinaGeoJSON}
+                width={mapPanelWidth}
+                height={mapPanelHeight}
+                entries={entries}
+                activeFilter={activeFilter}
+                onFeaturePress={handleFeaturePress}
+                showLabels={true}
+              />
+            )}
+          </View>
+          <View style={styles.desktopSidePanel}>
+            <FilterBar />
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+              <MapLegendNative />
+              <Text style={styles.hint}>Hacé clic en una provincia del mapa para registrar actividades.</Text>
+              {selectedFeature && (
+                <View style={styles.desktopSelectedCard}>
+                  <Text style={styles.desktopSelectedLabel}>ÚLTIMO SELECCIONADO</Text>
+                  <TouchableOpacity
+                    style={[styles.desktopOpenBtn, { backgroundColor: PRIMARY }]}
+                    onPress={() => setModalVisible(true)}
+                  >
+                    <Text style={styles.desktopOpenBtnText}>{selectedFeature.name}</Text>
+                    <Text style={styles.desktopOpenBtnSub}>
+                      {entries[selectedFeature.id]?.length ?? 0} actividad{(entries[selectedFeature.id]?.length ?? 0) !== 1 ? 'es' : ''}  →
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+        {selectedFeature && (
+          <InfoModal
+            visible={modalVisible}
+            featureId={selectedFeature.id}
+            featureName={selectedFeature.name}
+            mapType="argentina"
+            entries={entries[selectedFeature.id] ?? []}
+            onSave={handleSave}
+            onDelete={handleDelete}
+            onClose={() => setModalVisible(false)}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      <StatsBar />
+      <FilterBar />
 
-      {/* Stats bar */}
-      <View style={styles.statsBar}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>24</Text>
-          <Text style={styles.statLabel}>Jurisdicciones</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: '#1565C0' }]}>{territoriesCount}</Text>
-          <Text style={styles.statLabel}>Con actividad</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: '#6A1B9A' }]}>{totalEntries}</Text>
-          <Text style={styles.statLabel}>Registros</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <TouchableOpacity
-          style={[styles.exportBtn, exporting && { opacity: 0.6 }]}
-          onPress={handleExport}
-          disabled={exporting}
-        >
-          {exporting
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Text style={styles.exportBtnText}>📤</Text>
-          }
-        </TouchableOpacity>
-      </View>
-
-      {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar} contentContainerStyle={styles.filterContent}>
-        <TouchableOpacity
-          style={[styles.filterChip, !activeFilter && styles.filterChipAll]}
-          onPress={() => setActiveFilter(null)}
-        >
-          <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
-        </TouchableOpacity>
-        {CATEGORIES.map(cat => {
-          const col    = CATEGORY_COLORS[cat];
-          const active = activeFilter === cat;
-          return (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.filterChip, active && { backgroundColor: col.fill, borderColor: col.stroke }]}
-              onPress={() => setActiveFilter(active ? null : cat)}
-            >
-              <Text style={[styles.filterChipText, active && { color: col.chip, fontWeight: '700' }]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Map — FUERA del ScrollView */}
       <View
         style={styles.mapWrapper}
         onLayout={(e) => setMapHeight(e.nativeEvent.layout.height)}
       >
         {loadingData || mapHeight === 0 ? (
           <View style={styles.mapLoading}>
-            <ActivityIndicator size="large" color="#003366" />
+            <ActivityIndicator size="large" color={PRIMARY} />
           </View>
         ) : (
           <InteractiveMap
             geojson={argentinaGeoJSON}
-            width={mapWidth}
-            height={mapHeight}
+            width={mapPanelWidth}
+            height={mapPanelHeight}
             entries={entries}
             activeFilter={activeFilter}
             onFeaturePress={handleFeaturePress}
@@ -156,7 +230,6 @@ export default function ArgentinaScreen() {
         )}
       </View>
 
-      {/* Leyenda */}
       <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 8 }}>
         <MapLegendNative />
         <Text style={styles.hint}>Tocá una provincia para registrar actividades.</Text>
@@ -180,35 +253,56 @@ export default function ArgentinaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F4FA' },
+
   statsBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', paddingVertical: 10, paddingHorizontal: 16,
     borderBottomWidth: 1, borderBottomColor: '#E0E7F0', elevation: 2,
   },
-  statItem: { flex: 1, alignItems: 'center' },
-  statNumber: { fontSize: 20, fontWeight: '800', color: '#003366' },
-  statLabel: { fontSize: 9, color: '#6B87A8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 },
+  statsBarDesktop: { borderRadius: 12, marginHorizontal: 16, marginTop: 12, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
+  statItem:   { flex: 1, alignItems: 'center' },
+  statNumber: { fontSize: 20, fontWeight: '800', color: PRIMARY },
+  statLabel:  { fontSize: 9, color: '#6B87A8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 1 },
   statDivider: { width: 1, height: 28, backgroundColor: '#E0E7F0' },
   exportBtn: {
-    backgroundColor: '#003366', paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: PRIMARY, paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: 8, marginLeft: 8, minWidth: 40, alignItems: 'center',
   },
   exportBtnText: { color: '#FFF', fontSize: 16 },
 
-  filterBar: { maxHeight: 48, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E7F0' },
+  filterBar:     { maxHeight: 48, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E0E7F0' },
   filterContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row', alignItems: 'center' },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 5,
     borderRadius: 20, borderWidth: 1.5, borderColor: '#C8D8EA',
     backgroundColor: '#F5F7FA',
   },
-  filterChipAll: { backgroundColor: '#003366', borderColor: '#003366' },
-  filterChipText: { fontSize: 12, fontWeight: '600', color: '#6B87A8' },
+  filterChipAll:        { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  filterChipText:       { fontSize: 12, fontWeight: '600', color: '#6B87A8' },
   filterChipTextActive: { color: '#FFF' },
 
-  mapWrapper: { flex: 1, alignItems: 'center', paddingHorizontal: 12, paddingTop: 10 },
-  mapLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
+  mapWrapper:   { flex: 1, alignItems: 'center', paddingHorizontal: 12, paddingTop: 10 },
+  mapLoading:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
   bottomScroll: { maxHeight: 90 },
   hint: { fontSize: 11, color: '#6B87A8', textAlign: 'center', marginTop: 2, marginBottom: 6, lineHeight: 16 },
+
+  desktopRoot: { flex: 1, backgroundColor: '#F0F4FA' },
+  desktopBody: { flex: 1, flexDirection: 'row', padding: 16, gap: 16 },
+  desktopMapPanel: {
+    borderRadius: 16, overflow: 'hidden',
+    backgroundColor: '#EEF4FB',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8,
+  },
+  desktopSidePanel: {
+    flex: 1, backgroundColor: '#FFF',
+    borderRadius: 16, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 8,
+  },
+  desktopSelectedCard:  { margin: 16, marginTop: 8 },
+  desktopSelectedLabel: { fontSize: 9, fontWeight: '700', color: '#6B87A8', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
+  desktopOpenBtn:       { borderRadius: 12, padding: 14 },
+  desktopOpenBtnText:   { fontSize: 16, fontWeight: '800', color: '#FFF', marginBottom: 2 },
+  desktopOpenBtnSub:    { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
 });

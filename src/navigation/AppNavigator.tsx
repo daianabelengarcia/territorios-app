@@ -7,6 +7,7 @@ import Svg, { Path } from 'react-native-svg';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import ArgentinaScreen from '../screens/ArgentinaScreen';
 import BuenosAiresScreen from '../screens/BuenosAiresScreen';
+import AMBAScreen from '../screens/AMBAScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -82,6 +83,16 @@ export default function AppNavigator() {
           title: 'Prov. de Buenos Aires',
           tabBarLabel: 'Bs. Aires',
           tabBarIcon: ({ color, size }) => <MapIcon color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="AMBA"
+        component={AMBAScreen}
+        options={{
+          title: 'AMBA',
+          tabBarLabel: 'AMBA',
+          tabBarIcon: ({ color, size }) => <MapIcon color={color} size={size} />,
+          tabBarActiveTintColor: '#5C2D91',
         }}
       />
     </Tab.Navigator>

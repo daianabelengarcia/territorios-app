@@ -11,11 +11,11 @@ import InteractiveMap, { MapLegendNative } from '../components/InteractiveMap';
 import InfoModal from '../components/InfoModal';
 import { saveEntry, deleteEntry, getAllEntries } from '../storage/database';
 import { exportToExcel } from '../utils/exportExcel';
-import buenosAiresGeoJSON from '../data/buenosaires-geojson';
+import ambaGeoJSON from '../data/amba-geojson';
 
-const PRIMARY = '#1A7A4A';
+const PRIMARY = '#5C2D91'; // violeta AMBA
 
-export default function BuenosAiresScreen() {
+export default function AMBAScreen() {
   const { width, height } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 768;
 
@@ -30,7 +30,7 @@ export default function BuenosAiresScreen() {
   const [mapHeight, setMapHeight]       = useState(0);
 
   useEffect(() => {
-    getAllEntries('buenosaires').then(data => {
+    getAllEntries('amba').then(data => {
       setEntries(data);
       setLoadingData(false);
     });
@@ -55,7 +55,7 @@ export default function BuenosAiresScreen() {
 
   const handleDelete = useCallback(async (entryId: string) => {
     if (!selectedFeature) return;
-    await deleteEntry('buenosaires', selectedFeature.id, entryId);
+    await deleteEntry('amba', selectedFeature.id, entryId);
     setEntries(prev => {
       const list = (prev[selectedFeature.id] ?? []).filter(e => e.entryId !== entryId);
       const next = { ...prev };
@@ -73,7 +73,7 @@ export default function BuenosAiresScreen() {
     }
     setExporting(true);
     try {
-      await exportToExcel(entries, 'buenosaires');
+      await exportToExcel(entries, 'amba');
     } catch (e: any) {
       Alert.alert('Error al exportar', e?.message ?? 'Error inesperado.');
     } finally {
@@ -82,7 +82,7 @@ export default function BuenosAiresScreen() {
   }, [entries]);
 
   const searchResults = searchQuery.length > 1
-    ? (buenosAiresGeoJSON.features ?? []).filter(f =>
+    ? (ambaGeoJSON.features ?? []).filter(f =>
         f.properties?.name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
@@ -90,15 +90,18 @@ export default function BuenosAiresScreen() {
   const territoriesCount = Object.keys(entries).length;
   const totalEntries     = Object.values(entries).reduce((s, arr) => s + arr.length, 0);
 
+  // ── Dimensiones del mapa ────────────────────────────────────────────────────
   const mapPanelWidth  = isDesktop ? Math.min(width * 0.62, 760) : width - 24;
-  const mapPanelHeight = isDesktop ? height - 120 : mapHeight;
+  const mapPanelHeight = isDesktop
+    ? height - 120   // desktop: casi toda la altura
+    : mapHeight;      // mobile: onLayout
 
-  // ── Sub-components ──────────────────────────────────────────────────────────
+  // ── Stats bar ────────────────────────────────────────────────────────────────
   const StatsBar = () => (
     <View style={[styles.statsBar, isDesktop && styles.statsBarDesktop]}>
       <View style={styles.statItem}>
-        <Text style={styles.statNumber}>135</Text>
-        <Text style={styles.statLabel}>Partidos</Text>
+        <Text style={[styles.statNumber, { color: PRIMARY }]}>25</Text>
+        <Text style={styles.statLabel}>Distritos</Text>
       </View>
       <View style={styles.statDivider} />
       <View style={styles.statItem}>
@@ -112,7 +115,7 @@ export default function BuenosAiresScreen() {
       </View>
       <View style={styles.statDivider} />
       <TouchableOpacity
-        style={[styles.exportBtn, exporting && { opacity: 0.6 }]}
+        style={[styles.exportBtn, { backgroundColor: PRIMARY }, exporting && { opacity: 0.6 }]}
         onPress={handleExport}
         disabled={exporting}
       >
@@ -124,6 +127,7 @@ export default function BuenosAiresScreen() {
     </View>
   );
 
+  // ── Filtros ──────────────────────────────────────────────────────────────────
   const FilterBar = () => (
     <ScrollView
       horizontal
@@ -132,7 +136,7 @@ export default function BuenosAiresScreen() {
       contentContainerStyle={styles.filterContent}
     >
       <TouchableOpacity
-        style={[styles.filterChip, !activeFilter && styles.filterChipAll]}
+        style={[styles.filterChip, !activeFilter && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}
         onPress={() => setActiveFilter(null)}
       >
         <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
@@ -155,6 +159,7 @@ export default function BuenosAiresScreen() {
     </ScrollView>
   );
 
+  // ── Buscador ─────────────────────────────────────────────────────────────────
   const SearchBar = () => (
     <>
       <View style={styles.searchContainer}>
@@ -162,8 +167,8 @@ export default function BuenosAiresScreen() {
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={t => { setSearchQuery(t); setShowList(t.length > 1); }}
-          placeholder="🔍  Buscar partido…"
-          placeholderTextColor="#6B8A78"
+          placeholder="🔍  Buscar distrito…"
+          placeholderTextColor="#6B87A8"
           returnKeyType="search"
           clearButtonMode="while-editing"
         />
@@ -198,33 +203,38 @@ export default function BuenosAiresScreen() {
     </>
   );
 
-  // ── Desktop layout ─────────────────────────────────────────────────────────
+  // ── Layout Desktop ────────────────────────────────────────────────────────────
   if (isDesktop) {
     return (
       <View style={styles.desktopRoot}>
         <StatsBar />
         <View style={styles.desktopBody}>
+          {/* Panel izquierdo: mapa */}
           <View style={[styles.desktopMapPanel, { width: mapPanelWidth }]}>
             {loadingData ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ flex: 1 }} />
             ) : (
               <InteractiveMap
-                geojson={buenosAiresGeoJSON}
+                geojson={ambaGeoJSON}
                 width={mapPanelWidth}
                 height={mapPanelHeight}
                 entries={entries}
                 activeFilter={activeFilter}
                 onFeaturePress={handleFeaturePress}
-                showLabels={false}
+                showLabels={true}
               />
             )}
           </View>
+
+          {/* Panel derecho: controles */}
           <View style={styles.desktopSidePanel}>
             <SearchBar />
             <FilterBar />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
               <MapLegendNative />
-              <Text style={styles.hint}>Hacé clic en un partido del mapa o buscalo por nombre.</Text>
+              <Text style={styles.hint}>
+                Hacé clic en un distrito del mapa o buscalo por nombre.
+              </Text>
               {selectedFeature && (
                 <View style={styles.desktopSelectedCard}>
                   <Text style={styles.desktopSelectedLabel}>ÚLTIMO SELECCIONADO</Text>
@@ -242,12 +252,13 @@ export default function BuenosAiresScreen() {
             </ScrollView>
           </View>
         </View>
+
         {selectedFeature && (
           <InfoModal
             visible={modalVisible}
             featureId={selectedFeature.id}
             featureName={selectedFeature.name}
-            mapType="buenosaires"
+            mapType="amba"
             entries={entries[selectedFeature.id] ?? []}
             onSave={handleSave}
             onDelete={handleDelete}
@@ -258,7 +269,7 @@ export default function BuenosAiresScreen() {
     );
   }
 
-  // ── Mobile layout ──────────────────────────────────────────────────────────
+  // ── Layout Mobile ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <SearchBar />
@@ -275,20 +286,20 @@ export default function BuenosAiresScreen() {
           </View>
         ) : (
           <InteractiveMap
-            geojson={buenosAiresGeoJSON}
+            geojson={ambaGeoJSON}
             width={mapPanelWidth}
             height={mapPanelHeight}
             entries={entries}
             activeFilter={activeFilter}
             onFeaturePress={handleFeaturePress}
-            showLabels={false}
+            showLabels={true}
           />
         )}
       </View>
 
-      <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 12 }}>
+      <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 8 }}>
         <MapLegendNative />
-        <Text style={styles.hint}>Tocá un partido o buscalo por nombre.</Text>
+        <Text style={styles.hint}>Tocá un distrito o buscalo por nombre.</Text>
       </ScrollView>
 
       {selectedFeature && (
@@ -296,7 +307,7 @@ export default function BuenosAiresScreen() {
           visible={modalVisible}
           featureId={selectedFeature.id}
           featureName={selectedFeature.name}
-          mapType="buenosaires"
+          mapType="amba"
           entries={entries[selectedFeature.id] ?? []}
           onSave={handleSave}
           onDelete={handleDelete}
@@ -308,15 +319,16 @@ export default function BuenosAiresScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F7F4' },
+  // ── Mobile ──────────────────────────────────────────────────────────────────
+  container:    { flex: 1, backgroundColor: '#F5F0FA' },
   searchContainer: {
     paddingHorizontal: 12, paddingVertical: 6,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#D0E8DC',
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#DDD0EA',
   },
   searchInput: {
-    backgroundColor: '#F0F7F4', borderWidth: 1.5, borderColor: '#B8D8C8',
+    backgroundColor: '#F5F0FA', borderWidth: 1.5, borderColor: '#C8B8DF',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8,
-    fontSize: 14, color: '#1A2C1F',
+    fontSize: 14, color: '#2C1A45',
   },
   searchDropdown: {
     position: 'absolute', top: 56, left: 12, right: 12,
@@ -327,44 +339,44 @@ const styles = StyleSheet.create({
   },
   searchResult: {
     paddingHorizontal: 16, paddingVertical: 11,
-    borderBottomWidth: 1, borderBottomColor: '#EEF7F2',
+    borderBottomWidth: 1, borderBottomColor: '#F0EAF7',
   },
-  searchResultName:  { fontSize: 14, fontWeight: '600', color: '#1A2C1F' },
-  searchResultCount: { fontSize: 11, color: '#6B8A78', marginTop: 1 },
+  searchResultName:  { fontSize: 14, fontWeight: '600', color: '#2C1A45' },
+  searchResultCount: { fontSize: 11, color: '#8B78A8', marginTop: 1 },
 
   statsBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFF', paddingVertical: 8, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: '#D0E8DC', elevation: 2,
+    borderBottomWidth: 1, borderBottomColor: '#DDD0EA', elevation: 2,
   },
   statsBarDesktop: { borderRadius: 12, marginHorizontal: 16, marginTop: 12, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
   statItem:   { flex: 1, alignItems: 'center' },
-  statNumber: { fontSize: 18, fontWeight: '800', color: '#1A7A4A' },
-  statLabel:  { fontSize: 9, color: '#6B8A78', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 1 },
-  statDivider: { width: 1, height: 26, backgroundColor: '#D0E8DC' },
+  statNumber: { fontSize: 18, fontWeight: '800', color: '#5C2D91' },
+  statLabel:  { fontSize: 9, color: '#8B78A8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 1 },
+  statDivider: { width: 1, height: 26, backgroundColor: '#DDD0EA' },
   exportBtn: {
-    backgroundColor: '#1A7A4A', paddingHorizontal: 14, paddingVertical: 7,
+    paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 8, marginLeft: 6, alignItems: 'center',
   },
   exportBtnText: { color: '#FFF', fontSize: 16 },
 
-  filterBar:     { maxHeight: 48, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#D0E8DC' },
+  filterBar:     { maxHeight: 48, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#DDD0EA' },
   filterContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexDirection: 'row', alignItems: 'center' },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1.5, borderColor: '#B8D8C8',
-    backgroundColor: '#F0F7F4',
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#C8B8DF',
+    backgroundColor: '#F5F0FA',
   },
-  filterChipAll:        { backgroundColor: '#1A7A4A', borderColor: '#1A7A4A' },
-  filterChipText:       { fontSize: 12, fontWeight: '600', color: '#6B8A78' },
+  filterChipText:       { fontSize: 12, fontWeight: '600', color: '#8B78A8' },
   filterChipTextActive: { color: '#FFF' },
 
-  mapWrapper:   { flex: 1, alignItems: 'center', paddingHorizontal: 12, paddingTop: 8 },
-  mapLoading:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  mapWrapper:  { flex: 1, alignItems: 'center', paddingHorizontal: 12, paddingTop: 8 },
+  mapLoading:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
   bottomScroll: { maxHeight: 120 },
-  hint: { fontSize: 11, color: '#6B8A78', textAlign: 'center', marginTop: 4, marginBottom: 6, lineHeight: 16 },
+  hint: { fontSize: 11, color: '#8B78A8', textAlign: 'center', marginTop: 4, marginBottom: 6, lineHeight: 16 },
 
-  desktopRoot: { flex: 1, backgroundColor: '#F0F7F4' },
+  // ── Desktop ──────────────────────────────────────────────────────────────────
+  desktopRoot: { flex: 1, backgroundColor: '#F5F0FA' },
   desktopBody: { flex: 1, flexDirection: 'row', padding: 16, gap: 16 },
   desktopMapPanel: {
     borderRadius: 16, overflow: 'hidden',
@@ -378,9 +390,9 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 8,
   },
-  desktopSelectedCard:  { margin: 16, marginTop: 8 },
-  desktopSelectedLabel: { fontSize: 9, fontWeight: '700', color: '#6B8A78', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
-  desktopOpenBtn:       { borderRadius: 12, padding: 14 },
-  desktopOpenBtnText:   { fontSize: 16, fontWeight: '800', color: '#FFF', marginBottom: 2 },
-  desktopOpenBtnSub:    { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
+  desktopSelectedCard: { margin: 16, marginTop: 8 },
+  desktopSelectedLabel: { fontSize: 9, fontWeight: '700', color: '#8B78A8', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
+  desktopOpenBtn: { borderRadius: 12, padding: 14 },
+  desktopOpenBtnText: { fontSize: 16, fontWeight: '800', color: '#FFF', marginBottom: 2 },
+  desktopOpenBtnSub:  { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
 });
