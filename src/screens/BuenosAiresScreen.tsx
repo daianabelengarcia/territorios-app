@@ -90,8 +90,9 @@ export default function BuenosAiresScreen() {
   const territoriesCount = Object.keys(entries).length;
   const totalEntries     = Object.values(entries).reduce((s, arr) => s + arr.length, 0);
 
+  const [desktopMapH, setDesktopMapH] = useState(0);
   const mapPanelWidth  = isDesktop ? Math.min(width * 0.62, 760) : width - 24;
-  const mapPanelHeight = isDesktop ? height - 120 : mapHeight;
+  const mapPanelHeight = isDesktop ? (desktopMapH || height - 220) : mapHeight;
 
   // ── Sub-components ──────────────────────────────────────────────────────────
   const StatsBar = () => (
@@ -204,7 +205,10 @@ export default function BuenosAiresScreen() {
       <View style={styles.desktopRoot}>
         <StatsBar />
         <View style={styles.desktopBody}>
-          <View style={[styles.desktopMapPanel, { width: mapPanelWidth }]}>
+          <View
+            style={[styles.desktopMapPanel, { width: mapPanelWidth }]}
+            onLayout={(e) => setDesktopMapH(e.nativeEvent.layout.height)}
+          >
             {loadingData ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ flex: 1 }} />
             ) : (

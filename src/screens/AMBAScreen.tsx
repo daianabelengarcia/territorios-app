@@ -91,10 +91,9 @@ export default function AMBAScreen() {
   const totalEntries     = Object.values(entries).reduce((s, arr) => s + arr.length, 0);
 
   // ── Dimensiones del mapa ────────────────────────────────────────────────────
+  const [desktopMapH, setDesktopMapH] = useState(0);
   const mapPanelWidth  = isDesktop ? Math.min(width * 0.62, 760) : width - 24;
-  const mapPanelHeight = isDesktop
-    ? height - 120   // desktop: casi toda la altura
-    : mapHeight;      // mobile: onLayout
+  const mapPanelHeight = isDesktop ? (desktopMapH || height - 220) : mapHeight;
 
   // ── Stats bar ────────────────────────────────────────────────────────────────
   const StatsBar = () => (
@@ -210,7 +209,10 @@ export default function AMBAScreen() {
         <StatsBar />
         <View style={styles.desktopBody}>
           {/* Panel izquierdo: mapa */}
-          <View style={[styles.desktopMapPanel, { width: mapPanelWidth }]}>
+          <View
+            style={[styles.desktopMapPanel, { width: mapPanelWidth }]}
+            onLayout={(e) => setDesktopMapH(e.nativeEvent.layout.height)}
+          >
             {loadingData ? (
               <ActivityIndicator size="large" color={PRIMARY} style={{ flex: 1 }} />
             ) : (

@@ -36,10 +36,15 @@ const PRIMARY  = '#003366';
 
 function LogoutButton() {
   const handleLogout = () => {
-    Alert.alert('Cerrar sesión', '¿Querés salir de tu cuenta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: () => supabase.auth.signOut() },
-    ]);
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-restricted-globals
+      if (confirm('¿Querés cerrar sesión?')) supabase.auth.signOut();
+    } else {
+      Alert.alert('Cerrar sesión', '¿Querés salir de tu cuenta?', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      ]);
+    }
   };
   return (
     <TouchableOpacity onPress={handleLogout} style={{ marginRight: 14, padding: 4 }}>

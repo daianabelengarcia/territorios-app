@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, StyleSheet, ActivityIndicator, Text,
-  PanResponder, TouchableOpacity,
+  PanResponder, TouchableOpacity, Platform,
 } from 'react-native';
 import Svg, { Path, G, Text as SvgText } from 'react-native-svg';
 import { GeoJSONFeatureCollection, GeoFeature, VisitEntry, Category, CATEGORY_COLORS } from '../types';
@@ -115,7 +115,69 @@ export default function InteractiveMap({
     return () => clearTimeout(t);
   }, [geojson, width, height]);
 
-  // ─── Gesture refs ────────────────────────────────────────────────────────────
+  // ─── Web mouse handlers ──────────────────────────────────────────────────────
+  const isWeb = Platform.OS === 'web';
+  const webMouse = useRef({ dragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 });
+
+  const webHandlers = isWeb ? ({
+    onWheel: (e: any) => {
+      e.preventDefault?.();
+      const W = widthRef.current, H = heightRef.current;
+      const cv = vbRef.current;
+      const factor = e.deltaY > 0 ? 1.2 : 0.833;
+      const rect = e.currentTarget?.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+      const mx = (e.clientX ?? 0) - rect.left;
+      const my = (e.clientY ?? 0) - rect.top;
+      const newW = Math.max(W / 12, Math.min(W, cv.w * factor));
+      const newH = newW * (H / W);
+      const vx = cv.x + (mx / W) * cv.w;
+      const vy = cv.y + (my / H) * cv.h;
+      const nv: VB = {
+        x: Math.max(0, Math.min(W - newW, vx - (mx / W) * newW)),
+        y: Math.max(0, Math.min(H - newH, vy - (my / H) * newH)),
+        w: newW, h: newH,
+      };
+      vbRef.current = nv;
+      setVb(nv);
+    },
+    onMouseDown: (e: any) => {
+      webMouse.current = { dragging: true, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY };
+    },
+    onMouseMove: (e: any) => {
+      if (!webMouse.current.dragging) return;
+      const dx = e.clientX - webMouse.current.lastX;
+      const dy = e.clientY - webMouse.current.lastY;
+      webMouse.current.lastX = e.clientX;
+      webMouse.current.lastY = e.clientY;
+      const W = widthRef.current, H = heightRef.current;
+      const cv = vbRef.current;
+      if (cv.w >= W * 0.99) return;
+      const nv: VB = {
+        ...cv,
+        x: Math.max(0, Math.min(W - cv.w, cv.x - (dx / W) * cv.w)),
+        y: Math.max(0, Math.min(H - cv.h, cv.y - (dy / H) * cv.h)),
+      };
+      vbRef.current = nv;
+      setVb(nv);
+    },
+    onMouseUp: (e: any) => {
+      const dx = Math.abs(e.clientX - webMouse.current.startX);
+      const dy = Math.abs(e.clientY - webMouse.current.startY);
+      webMouse.current.dragging = false;
+      if (dx < 8 && dy < 8) {
+        const rect = e.currentTarget?.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+        const W = widthRef.current, H = heightRef.current;
+        const cv = vbRef.current;
+        const svgX = cv.x + ((e.clientX - rect.left) / W) * cv.w;
+        const svgY = cv.y + ((e.clientY - rect.top)  / H) * cv.h;
+        const hit = findFeatureAt(svgX, svgY, featuresRef.current);
+        if (hit) onPressRef.current(hit);
+      }
+    },
+    onMouseLeave: () => { webMouse.current.dragging = false; },
+  } as any) : {};
+
+  // ─── Gesture refs (mobile) ───────────────────────────────────────────────────
   const pinch = useRef({ dist: 0, wasActive: false });
   const pan   = useRef({ lastX: 0, lastY: 0 });
   const tap   = useRef({ startX: 0, startY: 0, startTime: 0 });
@@ -228,8 +290,9 @@ export default function InteractiveMap({
 
   return (
     <View
-      style={{ width, height, backgroundColor: '#EEF4FB', borderRadius: 12 }}
-      {...pr.panHandlers}
+      style={{ width, height, backgroundColor: '#EEF4FB', borderRadius: 12,
+        ...(isWeb ? { userSelect: 'none', cursor: vb.w < width * 0.95 ? 'grab' : 'default' } as any : {}) }}
+      {...(isWeb ? webHandlers : pr.panHandlers)}
     >
       <Svg width={width} height={height} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}>
         {features.map((feature, idx) => {
