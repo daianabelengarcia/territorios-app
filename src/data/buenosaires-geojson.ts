@@ -545,11 +545,6 @@ const data: GeoJSONFeatureCollection = {
   },
   {
     type: 'Feature' as const,
-    properties: { id: 'san-fernando', name: 'San Fernando' },
-    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.52,-34.454],[-58.595,-34.492],[-58.607,-34.486],[-58.596,-34.454],[-58.581,-34.451],[-58.559,-34.43],[-58.52,-34.454]]]]}
-  },
-  {
-    type: 'Feature' as const,
     properties: { id: 'san-isidro', name: 'San Isidro' },
     geometry: {"type":"MultiPolygon","coordinates":[[[[-58.554,-34.535],[-58.6,-34.492],[-58.506,-34.449],[-58.482,-34.479],[-58.479,-34.494],[-58.554,-34.535]]]]}
   },
@@ -646,42 +641,42 @@ const data: GeoJSONFeatureCollection = {
   {
     type: 'Feature' as const,
     properties: { id: 'hurlingham', name: 'Hurlingham' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.693,-34.613],[-58.678,-34.613],[-58.678,-34.628],[-58.693,-34.628],[-58.693,-34.613]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.706,-34.590],[-58.638,-34.593],[-58.635,-34.644],[-58.703,-34.641],[-58.706,-34.590]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'ituzaingo', name: 'Ituzaingó' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.717,-34.648],[-58.702,-34.648],[-58.702,-34.663],[-58.717,-34.663],[-58.717,-34.648]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.744,-34.628],[-58.672,-34.631],[-58.669,-34.680],[-58.741,-34.677],[-58.744,-34.628]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'jose-c-paz', name: 'José C. Paz' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.768,-34.468],[-58.753,-34.468],[-58.753,-34.483],[-58.768,-34.483],[-58.768,-34.468]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.820,-34.455],[-58.740,-34.451],[-58.737,-34.524],[-58.817,-34.528],[-58.820,-34.455]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'malvinas-argentinas', name: 'Malvinas Argentinas' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.743,-34.528],[-58.728,-34.528],[-58.728,-34.543],[-58.743,-34.543],[-58.743,-34.528]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.742,-34.447],[-58.637,-34.443],[-58.633,-34.519],[-58.739,-34.524],[-58.742,-34.447]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'san-miguel', name: 'San Miguel' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.728,-34.588],[-58.713,-34.588],[-58.713,-34.603],[-58.728,-34.603],[-58.728,-34.588]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.821,-34.527],[-58.664,-34.523],[-58.659,-34.617],[-58.817,-34.622],[-58.821,-34.527]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'presidente-peron', name: 'Presidente Perón' },
-    geometry: {"type":"Polygon","coordinates":[[[-58.423,-34.978],[-58.408,-34.978],[-58.408,-34.993],[-58.423,-34.993],[-58.423,-34.978]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-58.466,-34.981],[-58.306,-34.977],[-58.301,-35.068],[-58.462,-35.073],[-58.466,-34.981]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'punta-indio', name: 'Punta Indio' },
-    geometry: {"type":"Polygon","coordinates":[[[-57.363,-35.403],[-57.348,-35.403],[-57.348,-35.418],[-57.363,-35.418],[-57.363,-35.403]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-57.614,-35.233],[-57.256,-35.241],[-57.082,-35.395],[-57.057,-35.618],[-57.196,-35.775],[-57.432,-35.743],[-57.587,-35.536],[-57.614,-35.233]]]]}
   },
   {
     type: 'Feature' as const,
     properties: { id: 'lezama', name: 'Lezama' },
-    geometry: {"type":"Polygon","coordinates":[[[-57.968,-36.138],[-57.953,-36.138],[-57.953,-36.153],[-57.968,-36.153],[-57.968,-36.138]]]}
+    geometry: {"type":"MultiPolygon","coordinates":[[[[-57.945,-35.927],[-57.706,-35.923],[-57.702,-36.305],[-57.941,-36.309],[-57.945,-35.927]]]]}
   }
   ]
 };
