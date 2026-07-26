@@ -1,5 +1,7 @@
 import { GeoJSONFeatureCollection } from '../types';
 
+// v3 — Tigre y San Fernando: mainland only, sin Delta del Paraná
+
 /**
  * AMBA — Área Metropolitana de Buenos Aires
  * CABA + 24 Partidos del Gran Buenos Aires (25 distritos)
