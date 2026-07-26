@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { GeoFeature, VisitEntry, Category, CATEGORIES, CATEGORY_COLORS } from '../types';
+import { GeoFeature, VisitEntry, Category, AMBA_CATEGORIES, CATEGORY_COLORS } from '../types';
 import InteractiveMap, { MapLegendNative } from '../components/InteractiveMap';
 import InfoModal from '../components/InfoModal';
 import { saveEntry, deleteEntry, getAllEntries } from '../storage/database';
@@ -140,7 +140,7 @@ export default function AMBAScreen() {
       >
         <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
       </TouchableOpacity>
-      {CATEGORIES.map(cat => {
+      {AMBA_CATEGORIES.map(cat => {
         const col    = CATEGORY_COLORS[cat];
         const active = activeFilter === cat;
         return (
@@ -223,7 +223,7 @@ export default function AMBAScreen() {
                 entries={entries}
                 activeFilter={activeFilter}
                 onFeaturePress={handleFeaturePress}
-                showLabels={true}
+                showLabels={false}
               />
             )}
           </View>
@@ -233,7 +233,7 @@ export default function AMBAScreen() {
             <SearchBar />
             <FilterBar />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-              <MapLegendNative />
+              <MapLegendNative categories={AMBA_CATEGORIES} />
               <Text style={styles.hint}>
                 Hacé clic en un distrito del mapa o buscalo por nombre.
               </Text>
@@ -294,13 +294,13 @@ export default function AMBAScreen() {
             entries={entries}
             activeFilter={activeFilter}
             onFeaturePress={handleFeaturePress}
-            showLabels={true}
+            showLabels={false}
           />
         )}
       </View>
 
       <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 8 }}>
-        <MapLegendNative />
+        <MapLegendNative categories={AMBA_CATEGORIES} />
         <Text style={styles.hint}>Tocá un distrito o buscalo por nombre.</Text>
       </ScrollView>
 

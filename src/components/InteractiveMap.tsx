@@ -7,8 +7,8 @@ import Svg, { Path, G, Text as SvgText } from 'react-native-svg';
 import { GeoJSONFeatureCollection, GeoFeature, VisitEntry, Category, CATEGORY_COLORS } from '../types';
 import { projectFeatureCollection } from '../utils/geoProjection';
 
-const NO_DATA   = { fill: '#D4E4F7', stroke: '#88AACC' };
-const FILTERED_OUT = { fill: '#E8EFF6', stroke: '#C0CDD8' }; // gris suave = "no tiene esta categoría"
+const NO_DATA      = { fill: '#D4E4F7', stroke: '#88AACC' };
+const FILTERED_OUT = { fill: '#E8EFF6', stroke: '#C0CDD8' };
 
 interface Props {
   geojson: GeoJSONFeatureCollection;
@@ -30,15 +30,17 @@ function getFeatureColor(
   if (list.length === 0) return NO_DATA;
 
   if (activeFilter) {
-    const match = list.filter(e => e.category === activeFilter);
+    const match = list.filter(e => (e.categories ?? []).includes(activeFilter));
     return match.length > 0
       ? { fill: CATEGORY_COLORS[activeFilter].fill, stroke: CATEGORY_COLORS[activeFilter].stroke }
       : FILTERED_OUT;
   }
 
-  // Sin filtro: color de la entrada más reciente
+  // Sin filtro: color de la primera categoría de la entrada más reciente
   const latest = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  const col = CATEGORY_COLORS[latest.category];
+  const firstCat = latest.categories?.[0];
+  if (!firstCat) return NO_DATA;
+  const col = CATEGORY_COLORS[firstCat];
   return { fill: col.fill, stroke: col.stroke };
 }
 
@@ -80,7 +82,6 @@ export default function InteractiveMap({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [vb, setVb]             = useState<VB>({ x: 0, y: 0, w: width, h: height });
 
-  // Refs for PanResponder (avoids stale closures)
   const vbRef       = useRef<VB>(vb);
   const featuresRef = useRef<GeoFeature[]>([]);
   const onPressRef  = useRef(onFeaturePress);
@@ -97,7 +98,6 @@ export default function InteractiveMap({
     setVb(nv);
   }, [width, height]);
 
-  // Load features
   const geojsonRef = useRef(geojson);
   useEffect(() => {
     if (!width || !height) return;
@@ -115,11 +115,14 @@ export default function InteractiveMap({
     return () => clearTimeout(t);
   }, [geojson, width, height]);
 
-  // ─── Web mouse handlers ──────────────────────────────────────────────────────
+  // ─── Web mouse + touch handlers ─────────────────────────────────────────────
   const isWeb = Platform.OS === 'web';
-  const webMouse = useRef({ dragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 });
+  const webMouse   = useRef({ dragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 });
+  const webPinch   = useRef({ active: false, dist: 0 });
+  const webTouchTap = useRef({ startX: 0, startY: 0, time: 0, hadPinch: false });
 
   const webHandlers = isWeb ? ({
+    // ── Mouse wheel zoom ────────────────────────────────────────────────────
     onWheel: (e: any) => {
       e.preventDefault?.();
       const W = widthRef.current, H = heightRef.current;
@@ -140,6 +143,7 @@ export default function InteractiveMap({
       vbRef.current = nv;
       setVb(nv);
     },
+    // ── Mouse drag ──────────────────────────────────────────────────────────
     onMouseDown: (e: any) => {
       webMouse.current = { dragging: true, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY };
     },
@@ -175,9 +179,95 @@ export default function InteractiveMap({
       }
     },
     onMouseLeave: () => { webMouse.current.dragging = false; },
+
+    // ── Touch (mobile browser) ──────────────────────────────────────────────
+    onTouchStart: (e: any) => {
+      e.preventDefault?.();
+      const ts = e.touches;
+      webTouchTap.current = {
+        startX: ts[0].clientX,
+        startY: ts[0].clientY,
+        time: Date.now(),
+        hadPinch: false,
+      };
+      if (ts.length >= 2) {
+        webPinch.current = {
+          active: true,
+          dist: Math.hypot(ts[1].clientX - ts[0].clientX, ts[1].clientY - ts[0].clientY),
+        };
+        webTouchTap.current.hadPinch = true;
+      } else {
+        webPinch.current.active = false;
+        webMouse.current = { dragging: true, startX: ts[0].clientX, startY: ts[0].clientY, lastX: ts[0].clientX, lastY: ts[0].clientY };
+      }
+    },
+    onTouchMove: (e: any) => {
+      e.preventDefault?.();
+      const ts = e.touches;
+      const W = widthRef.current, H = heightRef.current;
+      const cv = vbRef.current;
+
+      if (ts.length >= 2) {
+        webTouchTap.current.hadPinch = true;
+        webPinch.current.active = true;
+        const newDist = Math.hypot(ts[1].clientX - ts[0].clientX, ts[1].clientY - ts[0].clientY);
+        const s = webPinch.current.dist > 0 ? webPinch.current.dist / newDist : 1;
+        webPinch.current.dist = newDist;
+        const rect = (e.currentTarget as any)?.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+        const midX = (ts[0].clientX + ts[1].clientX) / 2 - rect.left;
+        const midY = (ts[0].clientY + ts[1].clientY) / 2 - rect.top;
+        const newW = Math.max(W / 12, Math.min(W, cv.w * s));
+        const newH = newW * (H / W);
+        const vx = cv.x + (midX / W) * cv.w;
+        const vy = cv.y + (midY / H) * cv.h;
+        const nv: VB = {
+          x: Math.max(0, Math.min(W - newW, vx - (midX / W) * newW)),
+          y: Math.max(0, Math.min(H - newH, vy - (midY / H) * newH)),
+          w: newW, h: newH,
+        };
+        vbRef.current = nv;
+        setVb(nv);
+      } else if (ts.length === 1 && !webPinch.current.active) {
+        const dx = ts[0].clientX - webMouse.current.lastX;
+        const dy = ts[0].clientY - webMouse.current.lastY;
+        webMouse.current.lastX = ts[0].clientX;
+        webMouse.current.lastY = ts[0].clientY;
+        if (cv.w < W * 0.99) {
+          const nv: VB = {
+            ...cv,
+            x: Math.max(0, Math.min(W - cv.w, cv.x - (dx / W) * cv.w)),
+            y: Math.max(0, Math.min(H - cv.h, cv.y - (dy / H) * cv.h)),
+          };
+          vbRef.current = nv;
+          setVb(nv);
+        }
+      }
+    },
+    onTouchEnd: (e: any) => {
+      e.preventDefault?.();
+      if (e.touches.length < 2) webPinch.current.active = false;
+      if (e.touches.length === 0) {
+        webMouse.current.dragging = false;
+        const elapsed = Date.now() - webTouchTap.current.time;
+        if (!webTouchTap.current.hadPinch && elapsed < 400) {
+          const ct = e.changedTouches;
+          const dx = Math.abs(ct[0].clientX - webTouchTap.current.startX);
+          const dy = Math.abs(ct[0].clientY - webTouchTap.current.startY);
+          if (dx < 10 && dy < 10) {
+            const rect = (e.currentTarget as any)?.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+            const W = widthRef.current, H = heightRef.current;
+            const cv = vbRef.current;
+            const svgX = cv.x + ((ct[0].clientX - rect.left) / W) * cv.w;
+            const svgY = cv.y + ((ct[0].clientY - rect.top)  / H) * cv.h;
+            const hit = findFeatureAt(svgX, svgY, featuresRef.current);
+            if (hit) onPressRef.current(hit);
+          }
+        }
+      }
+    },
   } as any) : {};
 
-  // ─── Gesture refs (mobile) ───────────────────────────────────────────────────
+  // ─── Gesture refs (mobile native) ───────────────────────────────────────────
   const pinch = useRef({ dist: 0, wasActive: false });
   const pan   = useRef({ lastX: 0, lastY: 0 });
   const tap   = useRef({ startX: 0, startY: 0, startTime: 0 });
@@ -189,7 +279,6 @@ export default function InteractiveMap({
 
     onPanResponderGrant: (e) => {
       const ts = e.nativeEvent.touches;
-      // Reset para nuevo gesto
       pinch.current = { dist: 0, wasActive: false };
       tap.current = {
         startX: ts[0]?.locationX ?? 0,
@@ -222,8 +311,8 @@ export default function InteractiveMap({
 
         const newW = Math.max(W / 10, Math.min(W, cv.w / s));
         const newH = newW * (H / W);
-        let newX   = Math.max(0, Math.min(W - newW, midVX - (midSX / W) * newW));
-        let newY   = Math.max(0, Math.min(H - newH, midVY - (midSY / H) * newH));
+        const newX = Math.max(0, Math.min(W - newW, midVX - (midSX / W) * newW));
+        const newY = Math.max(0, Math.min(H - newH, midVY - (midSY / H) * newH));
 
         const nv: VB = { x: newX, y: newY, w: newW, h: newH };
         vbRef.current = nv;
@@ -249,10 +338,7 @@ export default function InteractiveMap({
     onPanResponderRelease: (e) => {
       const elapsed = Date.now() - tap.current.startTime;
       const ct = e.nativeEvent.changedTouches;
-
-      // ⚠️ No registrar tap si hubo pinch en algún momento del gesto
       if (pinch.current.wasActive) return;
-
       if (ct.length === 1 && elapsed < 400) {
         const { locationX, locationY } = ct[0];
         const dX = Math.abs(locationX - tap.current.startX);
@@ -290,8 +376,10 @@ export default function InteractiveMap({
 
   return (
     <View
-      style={{ width, height, backgroundColor: '#EEF4FB', borderRadius: 12,
-        ...(isWeb ? { userSelect: 'none', cursor: vb.w < width * 0.95 ? 'grab' : 'default' } as any : {}) }}
+      style={[
+        { width, height, backgroundColor: '#EEF4FB', borderRadius: 12 },
+        isWeb ? { userSelect: 'none', cursor: isZoomed ? 'grab' : 'default', touchAction: 'none' } as any : {},
+      ]}
       {...(isWeb ? webHandlers : pr.panHandlers)}
     >
       <Svg width={width} height={height} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}>
@@ -343,16 +431,19 @@ export default function InteractiveMap({
 
 // ─── Legend ───────────────────────────────────────────────────────────────────
 import { Text as RNText } from 'react-native';
-import { CATEGORIES } from '../types';
 
-export function MapLegendNative() {
+interface LegendProps {
+  categories: Category[];
+}
+
+export function MapLegendNative({ categories }: LegendProps) {
   return (
     <View style={styles.legend}>
       <View style={styles.legendItem}>
         <View style={[styles.legendSwatch, { backgroundColor: NO_DATA.fill, borderColor: NO_DATA.stroke }]} />
         <RNText style={styles.legendLabel}>Sin actividades</RNText>
       </View>
-      {CATEGORIES.map(cat => {
+      {categories.map(cat => {
         const col = CATEGORY_COLORS[cat];
         return (
           <View key={cat} style={styles.legendItem}>

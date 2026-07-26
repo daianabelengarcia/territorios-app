@@ -18,9 +18,7 @@ function formatDate(iso: string): string {
 }
 
 function categoryLabel(entry: VisitEntry): string {
-  return entry.category === 'Otra' && entry.customCategory
-    ? `Otra: ${entry.customCategory}`
-    : entry.category;
+  return (entry.categories ?? []).join(' / ') || '';
 }
 
 function buildCSV(allEntries: Record<string, VisitEntry[]>, mapType: MapType): { csv: string; fileName: string } {

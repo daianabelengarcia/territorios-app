@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { GeoFeature, VisitEntry, Category, CATEGORIES, CATEGORY_COLORS } from '../types';
+import { GeoFeature, VisitEntry, Category, AMBA_CATEGORIES, CATEGORY_COLORS } from '../types';
 import InteractiveMap, { MapLegendNative } from '../components/InteractiveMap';
 import InfoModal from '../components/InfoModal';
 import { saveEntry, deleteEntry, getAllEntries } from '../storage/database';
@@ -138,7 +138,7 @@ export default function BuenosAiresScreen() {
       >
         <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
       </TouchableOpacity>
-      {CATEGORIES.map(cat => {
+      {AMBA_CATEGORIES.map(cat => {
         const col    = CATEGORY_COLORS[cat];
         const active = activeFilter === cat;
         return (
@@ -227,7 +227,7 @@ export default function BuenosAiresScreen() {
             <SearchBar />
             <FilterBar />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-              <MapLegendNative />
+              <MapLegendNative categories={AMBA_CATEGORIES} />
               <Text style={styles.hint}>Hacé clic en un partido del mapa o buscalo por nombre.</Text>
               {selectedFeature && (
                 <View style={styles.desktopSelectedCard}>
@@ -291,7 +291,7 @@ export default function BuenosAiresScreen() {
       </View>
 
       <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 12 }}>
-        <MapLegendNative />
+        <MapLegendNative categories={AMBA_CATEGORIES} />
         <Text style={styles.hint}>Tocá un partido o buscalo por nombre.</Text>
       </ScrollView>
 

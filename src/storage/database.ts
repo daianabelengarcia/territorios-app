@@ -16,7 +16,7 @@ export async function saveEntry(entry: VisitEntry): Promise<void> {
     territory_id:   entry.territoryId,
     map_type:       entry.mapType,
     territory_name: entry.territoryName,
-    category:       entry.category,
+    category:       entry.categories.join(','),
     custom_category: entry.customCategory,
     visit_date:     entry.visitDate,
     contact:        entry.contact,
@@ -63,7 +63,10 @@ export async function getAllEntries(
       territoryId:    row.territory_id,
       mapType:        row.map_type,
       territoryName:  row.territory_name,
-      category:       row.category,
+      // Decode comma-separated string → array; handle legacy single-value rows
+      categories:     row.category
+        ? (row.category as string).split(',').map((s: string) => s.trim()).filter(Boolean) as any
+        : [],
       customCategory: row.custom_category,
       visitDate:      row.visit_date,
       contact:        row.contact,

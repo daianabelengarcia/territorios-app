@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { GeoFeature, VisitEntry, Category, CATEGORIES, CATEGORY_COLORS } from '../types';
+import { GeoFeature, VisitEntry, Category, ARGENTINA_CATEGORIES, CATEGORY_COLORS } from '../types';
 import InteractiveMap, { MapLegendNative } from '../components/InteractiveMap';
 import InfoModal from '../components/InfoModal';
 import { saveEntry, deleteEntry, getAllEntries } from '../storage/database';
@@ -127,7 +127,7 @@ export default function ArgentinaScreen() {
       >
         <Text style={[styles.filterChipText, !activeFilter && styles.filterChipTextActive]}>Todas</Text>
       </TouchableOpacity>
-      {CATEGORIES.map(cat => {
+      {ARGENTINA_CATEGORIES.map(cat => {
         const col    = CATEGORY_COLORS[cat];
         const active = activeFilter === cat;
         return (
@@ -165,14 +165,14 @@ export default function ArgentinaScreen() {
                 entries={entries}
                 activeFilter={activeFilter}
                 onFeaturePress={handleFeaturePress}
-                showLabels={true}
+                showLabels={false}
               />
             )}
           </View>
           <View style={styles.desktopSidePanel}>
             <FilterBar />
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-              <MapLegendNative />
+              <MapLegendNative categories={ARGENTINA_CATEGORIES} />
               <Text style={styles.hint}>Hacé clic en una provincia del mapa para registrar actividades.</Text>
               {selectedFeature && (
                 <View style={styles.desktopSelectedCard}>
@@ -229,13 +229,13 @@ export default function ArgentinaScreen() {
             entries={entries}
             activeFilter={activeFilter}
             onFeaturePress={handleFeaturePress}
-            showLabels={true}
+            showLabels={false}
           />
         )}
       </View>
 
       <ScrollView style={styles.bottomScroll} contentContainerStyle={{ paddingBottom: 8 }}>
-        <MapLegendNative />
+        <MapLegendNative categories={ARGENTINA_CATEGORIES} />
         <Text style={styles.hint}>Tocá una provincia para registrar actividades.</Text>
       </ScrollView>
 

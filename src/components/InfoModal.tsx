@@ -3,7 +3,7 @@ import {
   Modal, View, Text, TextInput, TouchableOpacity,
   ScrollView, StyleSheet, Platform, KeyboardAvoidingView, Alert,
 } from 'react-native';
-import { VisitEntry, Category, CATEGORIES, CATEGORY_COLORS, MapType } from '../types';
+import { VisitEntry, Category, CATEGORY_COLORS, MapType, getCategoriesForMap } from '../types';
 import { generateEntryId } from '../storage/database';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
   featureId: string;
   featureName: string;
   mapType: MapType;
-  entries: VisitEntry[];          // todas las entradas del territorio
+  entries: VisitEntry[];
   onSave: (entry: VisitEntry) => void;
   onDelete: (entryId: string) => void;
   onClose: () => void;
@@ -38,7 +38,6 @@ function fmt(iso: string): string {
   return iso;
 }
 
-/** Formatea dígitos sueltos a DD/MM/AAAA mientras el usuario escribe */
 function autoFormatDate(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8);
   if (digits.length <= 2) return digits;
@@ -55,10 +54,8 @@ function parseISO(display: string): string {
   return display;
 }
 
-function categoryLabel(entry: VisitEntry): string {
-  return entry.category === 'Otra' && entry.customCategory
-    ? entry.customCategory
-    : entry.category;
+function categoriesLabel(cats: Category[]): string {
+  return cats.length > 0 ? cats.join(' · ') : '—';
 }
 
 // ─── Entry card (in list view) ────────────────────────────────────────────────
@@ -66,14 +63,25 @@ function EntryCard({
   entry,
   onEdit,
 }: { entry: VisitEntry; onEdit: () => void }) {
-  const col = CATEGORY_COLORS[entry.category];
+  const firstCat = entry.categories?.[0];
+  const col = firstCat ? CATEGORY_COLORS[firstCat] : { fill: '#D4E4F7', stroke: '#88AACC', chip: '#88AACC', light: '#EEF4FB' };
   return (
     <TouchableOpacity style={styles.card} onPress={onEdit} activeOpacity={0.75}>
       <View style={[styles.cardAccent, { backgroundColor: col.fill }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardTop}>
-          <View style={[styles.chip, { backgroundColor: col.light, borderColor: col.stroke }]}>
-            <Text style={[styles.chipText, { color: col.chip }]}>{categoryLabel(entry)}</Text>
+          <View style={styles.cardChips}>
+            {(entry.categories ?? []).slice(0, 3).map(cat => {
+              const c = CATEGORY_COLORS[cat];
+              return (
+                <View key={cat} style={[styles.chip, { backgroundColor: c.light, borderColor: c.stroke }]}>
+                  <Text style={[styles.chipText, { color: c.chip }]}>{cat}</Text>
+                </View>
+              );
+            })}
+            {(entry.categories?.length ?? 0) > 3 && (
+              <Text style={styles.moreChips}>+{(entry.categories.length - 3)}</Text>
+            )}
           </View>
           {entry.visitDate ? (
             <Text style={styles.cardDate}>{fmt(entry.visitDate)}</Text>
@@ -94,12 +102,11 @@ function EntryCard({
 export default function InfoModal({
   visible, featureId, featureName, mapType, entries, onSave, onDelete, onClose,
 }: Props) {
+  const availableCategories = getCategoriesForMap(mapType);
+
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Evita que el backdrop cierre el modal inmediatamente al abrirse.
-  // En navegadores móviles el evento click llega ~300ms después del toque,
-  // justo cuando el modal ya está visible. Los 400ms de gracia lo neutralizan.
   const backdropReady = React.useRef(false);
   React.useEffect(() => {
     if (visible) {
@@ -110,22 +117,27 @@ export default function InfoModal({
   }, [visible]);
 
   // Form fields
-  const [category, setCategory]           = useState<Category>('Charlas');
-  const [customCategory, setCustomCategory] = useState('');
-  const [visitDate, setVisitDate]         = useState('');
-  const [contact, setContact]             = useState('');
-  const [organization, setOrganization]   = useState('');
-  const [notes, setNotes]                 = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<Category[]>([availableCategories[0]]);
+  const [visitDate, setVisitDate]     = useState('');
+  const [contact, setContact]         = useState('');
+  const [organization, setOrganization] = useState('');
+  const [notes, setNotes]             = useState('');
 
-  // Reset to list view when modal opens/closes or territory changes
   useEffect(() => {
     if (visible) setView('list');
   }, [visible, featureId]);
 
+  function toggleCategory(cat: Category) {
+    setSelectedCategories(prev =>
+      prev.includes(cat)
+        ? prev.filter(c => c !== cat)
+        : [...prev, cat]
+    );
+  }
+
   function openNewForm() {
     setEditingId(null);
-    setCategory('Charlas');
-    setCustomCategory('');
+    setSelectedCategories([availableCategories[0]]);
     setVisitDate('');
     setContact('');
     setOrganization('');
@@ -135,8 +147,11 @@ export default function InfoModal({
 
   function openEditForm(entry: VisitEntry) {
     setEditingId(entry.entryId);
-    setCategory(entry.category);
-    setCustomCategory(entry.customCategory ?? '');
+    // Handle legacy single-category entries
+    const cats = entry.categories?.length > 0
+      ? entry.categories
+      : [];
+    setSelectedCategories(cats);
     setVisitDate(fmt(entry.visitDate));
     setContact(entry.contact);
     setOrganization(entry.organization);
@@ -145,13 +160,14 @@ export default function InfoModal({
   }
 
   function handleSave() {
+    const cats = selectedCategories.length > 0 ? selectedCategories : [availableCategories[0]];
     const entry: VisitEntry = {
       entryId:        editingId ?? generateEntryId(),
       territoryId:    featureId,
       mapType,
       territoryName:  featureName,
-      category,
-      customCategory: category === 'Otra' ? customCategory : '',
+      categories:     cats,
+      customCategory: '',
       visitDate:      parseISO(visitDate),
       contact,
       organization,
@@ -266,12 +282,12 @@ export default function InfoModal({
                 contentContainerStyle={styles.scrollContent}
                 keyboardShouldPersistTaps="handled"
               >
-                {/* Category chips */}
-                <Text style={styles.fieldLabel}>Categoría</Text>
+                {/* Category chips — multi-select */}
+                <Text style={styles.fieldLabel}>Categoría (podés seleccionar varias)</Text>
                 <View style={styles.catRow}>
-                  {CATEGORIES.map(cat => {
+                  {availableCategories.map(cat => {
                     const col = CATEGORY_COLORS[cat];
-                    const active = category === cat;
+                    const active = selectedCategories.includes(cat);
                     return (
                       <TouchableOpacity
                         key={cat}
@@ -280,7 +296,7 @@ export default function InfoModal({
                           { borderColor: col.stroke },
                           active && { backgroundColor: col.fill },
                         ]}
-                        onPress={() => setCategory(cat)}
+                        onPress={() => toggleCategory(cat)}
                       >
                         <Text style={[styles.catBtnText, { color: active ? col.chip : C.muted }]}>
                           {cat}
@@ -289,21 +305,6 @@ export default function InfoModal({
                     );
                   })}
                 </View>
-
-                {/* Custom category */}
-                {category === 'Otra' && (
-                  <>
-                    <Text style={styles.fieldLabel}>Nombre de la categoría</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={customCategory}
-                      onChangeText={setCustomCategory}
-                      placeholder="Ej: Talleres, Ferias, etc."
-                      placeholderTextColor={C.muted}
-                      autoCapitalize="sentences"
-                    />
-                  </>
-                )}
 
                 {/* Date */}
                 <Text style={styles.fieldLabel}>Fecha</Text>
@@ -450,13 +451,15 @@ const styles = StyleSheet.create({
   },
   cardAccent: { width: 5, alignSelf: 'stretch' },
   cardBody: { flex: 1, padding: 12 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  cardChips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   chip: {
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 20, borderWidth: 1,
   },
-  chipText: { fontSize: 11, fontWeight: '700' },
-  cardDate: { fontSize: 11, color: C.muted },
+  chipText: { fontSize: 10, fontWeight: '700' },
+  moreChips: { fontSize: 10, color: C.muted, alignSelf: 'center' },
+  cardDate: { fontSize: 11, color: C.muted, flexShrink: 0 },
   cardContact: { fontSize: 13, fontWeight: '600', color: C.text, marginBottom: 1 },
   cardOrg: { fontSize: 12, color: C.muted, marginBottom: 2 },
   cardNotes: { fontSize: 12, color: C.muted, lineHeight: 17 },
