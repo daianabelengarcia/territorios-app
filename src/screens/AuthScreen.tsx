@@ -33,7 +33,11 @@ export default function AuthScreen() {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) setError(error.message);
     } else {
-      const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: 'https://daianabelengarcia.github.io/territorios-app/' },
+      });
       if (error) {
         setError(error.message);
       } else {
