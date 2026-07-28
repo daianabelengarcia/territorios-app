@@ -13,7 +13,7 @@ interface Props {
   mapType: MapType;
   entries: VisitEntry[];
   onSave: (entry: VisitEntry) => void;
-  onDelete: (entryId: string) => void;
+  onDelete: (entryId: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -59,12 +59,14 @@ function categoriesLabel(cats: Category[]): string {
 }
 
 // ─── Entry card (in list view) ────────────────────────────────────────────────
+const FALLBACK_COL = { fill: '#D4E4F7', stroke: '#88AACC', chip: '#88AACC', light: '#EEF4FB' };
+
 function EntryCard({
   entry,
   onEdit,
 }: { entry: VisitEntry; onEdit: () => void }) {
   const firstCat = entry.categories?.[0];
-  const col = firstCat ? CATEGORY_COLORS[firstCat] : { fill: '#D4E4F7', stroke: '#88AACC', chip: '#88AACC', light: '#EEF4FB' };
+  const col = (firstCat && CATEGORY_COLORS[firstCat]) ?? FALLBACK_COL;
   return (
     <TouchableOpacity style={styles.card} onPress={onEdit} activeOpacity={0.75}>
       <View style={[styles.cardAccent, { backgroundColor: col.fill }]} />
@@ -72,7 +74,7 @@ function EntryCard({
         <View style={styles.cardTop}>
           <View style={styles.cardChips}>
             {(entry.categories ?? []).slice(0, 3).map(cat => {
-              const c = CATEGORY_COLORS[cat];
+              const c = CATEGORY_COLORS[cat] ?? FALLBACK_COL;
               return (
                 <View key={cat} style={[styles.chip, { backgroundColor: c.light, borderColor: c.stroke }]}>
                   <Text style={[styles.chipText, { color: c.chip }]}>{cat}</Text>
@@ -106,6 +108,8 @@ export default function InfoModal({
 
   const [view, setView] = useState<'list' | 'form'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const backdropReady = React.useRef(false);
   React.useEffect(() => {
@@ -147,6 +151,8 @@ export default function InfoModal({
 
   function openEditForm(entry: VisitEntry) {
     setEditingId(entry.entryId);
+    setConfirmingDelete(false);
+    setDeleteError('');
     // Handle legacy single-category entries
     const cats = entry.categories?.length > 0
       ? entry.categories
@@ -182,21 +188,19 @@ export default function InfoModal({
 
   function handleDelete() {
     if (!editingId) return;
-    Alert.alert(
-      'Eliminar actividad',
-      '¿Seguro que querés eliminar esta entrada?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            onDelete(editingId);
-            setView('list');
-          },
-        },
-      ]
-    );
+    setConfirmingDelete(true);
+    setDeleteError('');
+  }
+
+  async function confirmDelete() {
+    if (!editingId) return;
+    try {
+      await onDelete(editingId);
+      setConfirmingDelete(false);
+      setView('list');
+    } catch (e: any) {
+      setDeleteError('No se pudo eliminar. Intentá de nuevo.');
+    }
   }
 
   const regionLabel = mapType === 'argentina' ? 'PROVINCIA' : 'PARTIDO';
@@ -356,20 +360,38 @@ export default function InfoModal({
               </ScrollView>
 
               {/* Footer */}
-              <View style={styles.footer}>
-                {editingId ? (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-                    <Text style={styles.deleteBtnText}>Eliminar</Text>
+              {confirmingDelete ? (
+                <View style={styles.confirmBox}>
+                  <Text style={styles.confirmText}>¿Eliminar esta entrada?</Text>
+                  {!!deleteError && <Text style={styles.confirmError}>{deleteError}</Text>}
+                  <View style={styles.confirmBtns}>
+                    <TouchableOpacity
+                      style={styles.cancelBtn}
+                      onPress={() => { setConfirmingDelete(false); setDeleteError(''); }}
+                    >
+                      <Text style={styles.cancelBtnText}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteBtnConfirm} onPress={confirmDelete}>
+                      <Text style={styles.deleteBtnConfirmText}>Sí, eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.footer}>
+                  {editingId ? (
+                    <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
+                      <Text style={styles.deleteBtnText}>Eliminar</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setView('list')}>
+                      <Text style={styles.cancelBtnText}>Cancelar</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                    <Text style={styles.saveBtnText}>Guardar</Text>
                   </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity style={styles.cancelBtn} onPress={() => setView('list')}>
-                    <Text style={styles.cancelBtnText}>Cancelar</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveBtnText}>Guardar</Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              )}
             </>
           )}
         </View>
@@ -503,7 +525,21 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.danger,
     alignItems: 'center', backgroundColor: '#FFF5F5',
   },
+  deleteBtnConfirm: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: C.danger, alignItems: 'center',
+  },
   deleteBtnText: { fontSize: 14, fontWeight: '700', color: C.danger },
+  deleteBtnConfirmText: { fontSize: 14, fontWeight: '700', color: C.white },
+  confirmBox: {
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+    borderTopWidth: 1, borderTopColor: '#EEF2F8',
+    backgroundColor: '#FFF5F5',
+  },
+  confirmText: { fontSize: 14, fontWeight: '600', color: C.danger, marginBottom: 8, textAlign: 'center' },
+  confirmError: { fontSize: 12, color: C.danger, textAlign: 'center', marginBottom: 6 },
+  confirmBtns: { flexDirection: 'row', gap: 12 },
   saveBtn: {
     flex: 2, paddingVertical: 13, borderRadius: 12,
     backgroundColor: C.primary, alignItems: 'center',
