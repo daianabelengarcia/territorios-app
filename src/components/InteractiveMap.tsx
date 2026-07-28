@@ -41,6 +41,7 @@ function getFeatureColor(
   const firstCat = latest.categories?.[0];
   if (!firstCat) return NO_DATA;
   const col = CATEGORY_COLORS[firstCat];
+  if (!col) return NO_DATA; // categoría legacy que ya no existe
   return { fill: col.fill, stroke: col.stroke };
 }
 
