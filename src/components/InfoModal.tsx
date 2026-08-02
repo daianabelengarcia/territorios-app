@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { VisitEntry, Category, CATEGORY_COLORS, MapType, getCategoriesForMap } from '../types';
 import { generateEntryId } from '../storage/database';
+import { exportEntryToWord, exportTerritoryToWord } from '../utils/exportToWord';
 
 interface Props {
   visible: boolean;
@@ -63,8 +64,10 @@ const FALLBACK_COL = { fill: '#D4E4F7', stroke: '#88AACC', chip: '#88AACC', ligh
 
 function EntryCard({
   entry,
+  mapType,
   onEdit,
-}: { entry: VisitEntry; onEdit: () => void }) {
+  onExportWord,
+}: { entry: VisitEntry; mapType: MapType; onEdit: () => void; onExportWord: () => void }) {
   const firstCat = entry.categories?.[0];
   const col = (firstCat && CATEGORY_COLORS[firstCat]) ?? FALLBACK_COL;
   return (
@@ -95,7 +98,12 @@ function EntryCard({
           <Text style={styles.cardNotes} numberOfLines={2}>{entry.notes}</Text>
         ) : null}
       </View>
-      <Text style={styles.cardArrow}>›</Text>
+      <View style={styles.cardRight}>
+        <TouchableOpacity style={styles.cardWordBtn} onPress={onExportWord}>
+          <Text style={styles.cardWordBtnText}>📄</Text>
+        </TouchableOpacity>
+        <Text style={styles.cardArrow}>›</Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -110,6 +118,7 @@ export default function InfoModal({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [exportingWord, setExportingWord] = useState(false);
 
   const backdropReady = React.useRef(false);
   React.useEffect(() => {
@@ -203,6 +212,22 @@ export default function InfoModal({
     }
   }
 
+  async function handleExportEntry(entry: VisitEntry) {
+    if (exportingWord) return;
+    setExportingWord(true);
+    try { await exportEntryToWord(entry, mapType); } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'No se pudo exportar.');
+    } finally { setExportingWord(false); }
+  }
+
+  async function handleExportTerritory() {
+    if (exportingWord || entries.length === 0) return;
+    setExportingWord(true);
+    try { await exportTerritoryToWord(entries, featureName, mapType); } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'No se pudo exportar.');
+    } finally { setExportingWord(false); }
+  }
+
   const regionLabel = mapType === 'argentina' ? 'PROVINCIA' : 'PARTIDO';
 
   return (
@@ -247,9 +272,20 @@ export default function InfoModal({
           {/* ── LIST VIEW ── */}
           {view === 'list' && (
             <>
-              <TouchableOpacity style={styles.newBtn} onPress={openNewForm}>
-                <Text style={styles.newBtnText}>+ Nueva actividad</Text>
-              </TouchableOpacity>
+              <View style={styles.listActions}>
+                <TouchableOpacity style={styles.newBtn} onPress={openNewForm}>
+                  <Text style={styles.newBtnText}>+ Nueva actividad</Text>
+                </TouchableOpacity>
+                {entries.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.exportAllBtn, exportingWord && { opacity: 0.5 }]}
+                    onPress={handleExportTerritory}
+                    disabled={exportingWord}
+                  >
+                    <Text style={styles.exportAllBtnText}>📄 Word</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
               <ScrollView
                 style={styles.scroll}
@@ -270,7 +306,9 @@ export default function InfoModal({
                       <EntryCard
                         key={entry.entryId}
                         entry={entry}
+                        mapType={mapType}
                         onEdit={() => openEditForm(entry)}
+                        onExportWord={() => handleExportEntry(entry)}
                       />
                     ))
                 )}
@@ -443,15 +481,32 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { fontSize: 13, color: C.muted, fontWeight: '600' },
 
-  newBtn: {
-    margin: 16,
+  listActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
     marginBottom: 8,
+    gap: 10,
+  },
+  newBtn: {
+    flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: C.primary,
     alignItems: 'center',
   },
   newBtnText: { color: C.white, fontSize: 15, fontWeight: '700' },
+  exportAllBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#00838F',
+    backgroundColor: '#E0F7FA',
+    alignItems: 'center',
+  },
+  exportAllBtnText: { fontSize: 13, fontWeight: '700', color: '#00838F' },
 
   scroll: { flexGrow: 0 },
   scrollContent: { padding: 16, paddingBottom: 8 },
@@ -485,7 +540,13 @@ const styles = StyleSheet.create({
   cardContact: { fontSize: 13, fontWeight: '600', color: C.text, marginBottom: 1 },
   cardOrg: { fontSize: 12, color: C.muted, marginBottom: 2 },
   cardNotes: { fontSize: 12, color: C.muted, lineHeight: 17 },
-  cardArrow: { fontSize: 24, color: C.muted, paddingHorizontal: 12 },
+  cardRight: { alignItems: 'center', justifyContent: 'center', paddingRight: 4 },
+  cardWordBtn: {
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 8, marginBottom: 2,
+  },
+  cardWordBtnText: { fontSize: 16 },
+  cardArrow: { fontSize: 20, color: C.muted, paddingHorizontal: 8 },
 
   // Form
   fieldLabel: {

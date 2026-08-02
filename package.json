@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@supabase/supabase-js": "^2.50.0",
     "@react-navigation/bottom-tabs": "^6.5.20",
     "@react-navigation/native": "^6.1.17",
     "@react-navigation/native-stack": "^6.9.26",
+    "@supabase/supabase-js": "^2.50.0",
+    "docx": "^9.7.1",
     "expo": "~54.0.0",
     "expo-file-system": "~19.0.21",
     "expo-sharing": "~14.0.8",
