@@ -9,6 +9,7 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import ArgentinaScreen from '../screens/ArgentinaScreen';
 import BuenosAiresScreen from '../screens/BuenosAiresScreen';
 import AMBAScreen from '../screens/AMBAScreen';
+import ArticlesScreen from '../screens/ArticlesScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -17,6 +18,15 @@ function MapIcon({ color, size }: { color: string; size: number }) {
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path d="M9 4L3 7v13l6-3 6 3 6-3V4l-6 3-6-3z" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
       <Path d="M9 4v13M15 7v13" stroke={color} strokeWidth={1.8} />
+    </Svg>
+  );
+}
+
+function ArticleIcon({ color, size }: { color: string; size: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -117,6 +127,15 @@ export default function AppNavigator() {
           tabBarLabel: 'AMBA',
           tabBarIcon: ({ color, size }) => <MapIcon color={color} size={size} />,
           tabBarActiveTintColor: '#5C2D91',
+        }}
+      />
+      <Tab.Screen
+        name="Artículos"
+        component={ArticlesScreen}
+        options={{
+          title: 'Artículos',
+          tabBarLabel: 'Artículos',
+          tabBarIcon: ({ color, size }) => <ArticleIcon color={color} size={size} />,
         }}
       />
     </Tab.Navigator>

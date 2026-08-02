@@ -67,6 +67,15 @@ export interface VisitEntry {
   createdAt: string;          // ISO timestamp
 }
 
+// ── Artículos ────────────────────────────────────────────────────────────────
+export interface Article {
+  articleId:  string;
+  title:      string;
+  link:       string;   // URL opcional
+  body:       string;   // texto libre
+  createdAt:  string;   // ISO timestamp
+}
+
 // GeoJSON (minimal)
 export interface GeoJSONPolygon {
   type: 'Polygon';

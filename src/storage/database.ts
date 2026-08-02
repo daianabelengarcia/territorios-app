@@ -1,5 +1,21 @@
 import { supabase } from '../lib/supabase';
-import { VisitEntry, MapType } from '../types';
+import { VisitEntry, MapType, Article } from '../types';
+
+/*
+ * SQL para crear la tabla articles en Supabase:
+ *
+ * CREATE TABLE articles (
+ *   article_id  TEXT PRIMARY KEY,
+ *   user_id     UUID REFERENCES auth.users(id),
+ *   title       TEXT NOT NULL,
+ *   link        TEXT,
+ *   body        TEXT,
+ *   created_at  TIMESTAMPTZ DEFAULT NOW()
+ * );
+ * ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
+ * CREATE POLICY "Users manage own articles" ON articles
+ *   FOR ALL USING (auth.uid() = user_id);
+ */
 
 export function generateEntryId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -78,4 +94,50 @@ export async function getAllEntries(
     result[entry.territoryId].push(entry);
   }
   return result;
+}
+
+// ── Artículos ────────────────────────────────────────────────────────────────
+
+export async function saveArticle(article: Article): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
+
+  const { error } = await supabase.from('articles').upsert({
+    article_id: article.articleId,
+    user_id:    user.id,
+    title:      article.title,
+    link:       article.link,
+    body:       article.body,
+    created_at: article.createdAt,
+  }, { onConflict: 'article_id' });
+
+  if (error) throw error;
+}
+
+export async function deleteArticle(articleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('articles')
+    .delete()
+    .eq('article_id', articleId);
+  if (error) throw error;
+}
+
+export async function getAllArticles(): Promise<Article[]> {
+  const { data, error } = await supabase
+    .from('articles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error al cargar artículos:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map(row => ({
+    articleId: row.article_id,
+    title:     row.title,
+    link:      row.link ?? '',
+    body:      row.body ?? '',
+    createdAt: row.created_at,
+  }));
 }

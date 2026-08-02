@@ -3,7 +3,7 @@ import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   BorderStyle, Table, TableRow, TableCell, WidthType, AlignmentType,
 } from 'docx';
-import { VisitEntry, MapType } from '../types';
+import { VisitEntry, MapType, Article } from '../types';
 
 function formatDate(iso: string): string {
   if (!iso) return '—';
@@ -106,6 +106,77 @@ export async function exportEntryToWord(entry: VisitEntry, mapType: MapType): Pr
   const fileName = `Territorios_${safe}_${timestamp}.docx`;
   const title = entry.territoryName;
   const doc = buildDocument([entry], title, mapType);
+  await downloadDoc(doc, fileName);
+}
+
+// ── Artículos ────────────────────────────────────────────────────────────────
+
+function buildArticleDocument(articles: Article[], docTitle: string): Document {
+  const timestamp = new Date().toLocaleDateString('es-AR');
+  const sorted = [...articles].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const children: Paragraph[] = [
+    new Paragraph({
+      text: docTitle,
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 120 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Exportado el ${timestamp}`, italics: true, size: 20, color: '666666' })],
+      spacing: { after: 320 },
+    }),
+  ];
+
+  sorted.forEach((article, i) => {
+    children.push(
+      new Paragraph({
+        text: article.title || 'Sin título',
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: i === 0 ? 0 : 360, after: 120 },
+      }),
+    );
+    if (article.link) {
+      children.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({ text: 'Link: ', bold: true, size: 22 }),
+            new TextRun({ text: article.link, size: 22, color: '1565C0' }),
+          ],
+        }),
+      );
+    }
+    if (article.body) {
+      // Split by newlines to preserve paragraph breaks
+      const lines = article.body.split('\n');
+      lines.forEach((line, li) => {
+        children.push(
+          new Paragraph({
+            spacing: { after: li === lines.length - 1 ? 0 : 80 },
+            children: [new TextRun({ text: line || ' ', size: 22 })],
+          }),
+        );
+      });
+    }
+  });
+
+  return new Document({ sections: [{ children }] });
+}
+
+/** Exporta un artículo individual como Word. */
+export async function exportArticleToWord(article: Article): Promise<void> {
+  const timestamp = new Date().toISOString().split('T')[0];
+  const safe = safeFileName(article.title || 'articulo');
+  const fileName = `Articulo_${safe}_${timestamp}.docx`;
+  const doc = buildArticleDocument([article], article.title || 'Artículo');
+  await downloadDoc(doc, fileName);
+}
+
+/** Exporta todos los artículos como un solo Word. */
+export async function exportAllArticlesToWord(articles: Article[]): Promise<void> {
+  const timestamp = new Date().toISOString().split('T')[0];
+  const fileName = `Articulos_todos_${timestamp}.docx`;
+  const doc = buildArticleDocument(articles, 'Artículos');
   await downloadDoc(doc, fileName);
 }
 
