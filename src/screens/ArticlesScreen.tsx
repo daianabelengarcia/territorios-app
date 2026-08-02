@@ -28,7 +28,7 @@ function formatDate(iso: string): string {
 // ── Formulario ───────────────────────────────────────────────────────────────
 interface ArticleFormProps {
   initial?: Article;
-  onSave: (a: Article) => void;
+  onSave: (a: Article) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -51,7 +51,12 @@ function ArticleForm({ initial, onSave, onCancel }: ArticleFormProps) {
       body:      body.trim(),
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     };
-    onSave(article);
+    try {
+      await onSave(article);
+    } catch (e: any) {
+      Alert.alert('Error al guardar', e?.message ?? 'No se pudo guardar el artículo.');
+      setSaving(false);
+    }
   };
 
   return (
