@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
   ScrollView, StyleSheet, Platform, KeyboardAvoidingView, Alert, Image,
-  ActivityIndicator,
+  ActivityIndicator, Dimensions,
 } from 'react-native';
 import { VisitEntry, Category, CATEGORY_COLORS, MapType, getCategoriesForMap } from '../types';
 import { generateEntryId, uploadImage } from '../storage/database';
@@ -63,12 +63,40 @@ function categoriesLabel(cats: Category[]): string {
 // ─── Entry card (in list view) ────────────────────────────────────────────────
 const FALLBACK_COL = { fill: '#D4E4F7', stroke: '#88AACC', chip: '#88AACC', light: '#EEF4FB' };
 
+// ─── Lightbox ─────────────────────────────────────────────────────────────────
+function ImageLightbox({ uri, onClose }: { uri: string; onClose: () => void }) {
+  const { width, height } = Dimensions.get('window');
+  return (
+    <Modal visible animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' }}>
+        <Image
+          source={{ uri }}
+          style={{ width, height: height * 0.82 }}
+          resizeMode="contain"
+        />
+        <TouchableOpacity
+          onPress={onClose}
+          style={{
+            position: 'absolute', top: 48, right: 20,
+            backgroundColor: 'rgba(255,255,255,0.15)',
+            width: 38, height: 38, borderRadius: 19,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 function EntryCard({
   entry,
   mapType,
   onEdit,
   onExportWord,
-}: { entry: VisitEntry; mapType: MapType; onEdit: () => void; onExportWord: () => void }) {
+  onOpenLightbox,
+}: { entry: VisitEntry; mapType: MapType; onEdit: () => void; onExportWord: () => void; onOpenLightbox?: (url: string) => void }) {
   const firstCat = entry.categories?.[0];
   const col = (firstCat && CATEGORY_COLORS[firstCat]) ?? FALLBACK_COL;
   return (
@@ -101,7 +129,9 @@ function EntryCard({
         {(entry.images ?? []).length > 0 && (
           <View style={styles.cardImageRow}>
             {(entry.images ?? []).slice(0, 4).map(url => (
-              <Image key={url} source={{ uri: url }} style={styles.cardThumb} />
+              <TouchableOpacity key={url} onPress={(e) => { e.stopPropagation?.(); onOpenLightbox?.(url); }} activeOpacity={0.8}>
+                <Image source={{ uri: url }} style={styles.cardThumb} />
+              </TouchableOpacity>
             ))}
             {(entry.images ?? []).length > 4 && (
               <View style={styles.cardThumbMore}>
@@ -150,6 +180,7 @@ export default function InfoModal({
   const [notes, setNotes]             = useState('');
   const [images, setImages]           = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [lightboxUri, setLightboxUri] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -321,6 +352,9 @@ export default function InfoModal({
       animationType="slide"
       onRequestClose={view === 'form' ? () => setView('list') : onClose}
     >
+      {lightboxUri && (
+        <ImageLightbox uri={lightboxUri} onClose={() => setLightboxUri(null)} />
+      )}
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -393,6 +427,7 @@ export default function InfoModal({
                         mapType={mapType}
                         onEdit={() => openEditForm(entry)}
                         onExportWord={() => handleExportEntry(entry)}
+                        onOpenLightbox={(url) => setLightboxUri(url)}
                       />
                     ))
                 )}
@@ -483,9 +518,11 @@ export default function InfoModal({
                 {/* Images */}
                 <Text style={styles.fieldLabel}>Fotos</Text>
                 <View style={styles.imageRow}>
-                  {images.map((url, idx) => (
+                  {images.map((url) => (
                     <View key={url} style={styles.thumbWrapper}>
-                      <Image source={{ uri: url }} style={styles.thumb} />
+                      <TouchableOpacity onPress={() => setLightboxUri(url)} activeOpacity={0.8}>
+                        <Image source={{ uri: url }} style={styles.thumb} />
+                      </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.thumbDelete}
                         onPress={() => removeImage(url)}
