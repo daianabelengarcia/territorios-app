@@ -1,5 +1,19 @@
 import { supabase } from '../lib/supabase';
 import { VisitEntry, MapType, Article } from '../types';
+import { Platform } from 'react-native';
+
+/*
+ * SQL para agregar imágenes a visit_entries (ejecutar en Supabase SQL editor):
+ *
+ * ALTER TABLE visit_entries ADD COLUMN IF NOT EXISTS images TEXT;
+ *
+ * Crear bucket en Supabase Storage:
+ *   - Nombre: entry-images
+ *   - Public: true
+ * Luego en Storage → Policies, agregar:
+ *   CREATE POLICY "Users manage own images" ON storage.objects
+ *     FOR ALL USING (auth.uid()::text = (storage.foldername(name))[1]);
+ */
 
 /*
  * SQL para crear la tabla articles en Supabase:
@@ -21,6 +35,40 @@ export function generateEntryId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/**
+ * Sube una imagen a Supabase Storage y devuelve la URL pública.
+ * @param uri  En web: Data URL o blob URL. En mobile: file:// URI.
+ * @param entryId  ID de la entrada (usado como carpeta).
+ */
+export async function uploadImage(uri: string, entryId: string): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autenticado');
+
+  const ext = uri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+  const filename = `${user.id}/${entryId}/${Date.now()}.${ext}`;
+
+  let blob: Blob;
+
+  if (Platform.OS === 'web') {
+    // En web la uri puede ser un blob: o data: URL
+    const res = await fetch(uri);
+    blob = await res.blob();
+  } else {
+    // En mobile fetch() puede leer file:// URIs en Expo
+    const res = await fetch(uri);
+    blob = await res.blob();
+  }
+
+  const { error } = await supabase.storage
+    .from('entry-images')
+    .upload(filename, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+
+  if (error) throw error;
+
+  const { data } = supabase.storage.from('entry-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
+
 /** Guarda (agrega o actualiza) una entrada en Supabase */
 export async function saveEntry(entry: VisitEntry): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
@@ -38,6 +86,7 @@ export async function saveEntry(entry: VisitEntry): Promise<void> {
     contact:        entry.contact,
     organization:   entry.organization,
     notes:          entry.notes,
+    images:         (entry.images ?? []).join(','),
     created_at:     entry.createdAt,
   }, { onConflict: 'entry_id' });
 
@@ -88,6 +137,9 @@ export async function getAllEntries(
       contact:        row.contact,
       organization:   row.organization,
       notes:          row.notes,
+      images:         row.images
+        ? (row.images as string).split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [],
       createdAt:      row.created_at,
     };
     if (!result[entry.territoryId]) result[entry.territoryId] = [];

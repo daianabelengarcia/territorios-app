@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Platform, KeyboardAvoidingView, Alert,
+  ScrollView, StyleSheet, Platform, KeyboardAvoidingView, Alert, Image,
+  ActivityIndicator,
 } from 'react-native';
 import { VisitEntry, Category, CATEGORY_COLORS, MapType, getCategoriesForMap } from '../types';
-import { generateEntryId } from '../storage/database';
+import { generateEntryId, uploadImage } from '../storage/database';
 import { exportEntryToWord, exportTerritoryToWord } from '../utils/exportToWord';
 
 interface Props {
@@ -97,6 +98,18 @@ function EntryCard({
         {entry.notes ? (
           <Text style={styles.cardNotes} numberOfLines={2}>{entry.notes}</Text>
         ) : null}
+        {(entry.images ?? []).length > 0 && (
+          <View style={styles.cardImageRow}>
+            {(entry.images ?? []).slice(0, 4).map(url => (
+              <Image key={url} source={{ uri: url }} style={styles.cardThumb} />
+            ))}
+            {(entry.images ?? []).length > 4 && (
+              <View style={styles.cardThumbMore}>
+                <Text style={styles.cardThumbMoreText}>+{(entry.images ?? []).length - 4}</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
       <View style={styles.cardRight}>
         <TouchableOpacity style={styles.cardWordBtn} onPress={onExportWord}>
@@ -135,6 +148,9 @@ export default function InfoModal({
   const [contact, setContact]         = useState('');
   const [organization, setOrganization] = useState('');
   const [notes, setNotes]             = useState('');
+  const [images, setImages]           = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (visible) setView('list');
@@ -155,6 +171,7 @@ export default function InfoModal({
     setContact('');
     setOrganization('');
     setNotes('');
+    setImages([]);
     setView('form');
   }
 
@@ -171,7 +188,73 @@ export default function InfoModal({
     setContact(entry.contact);
     setOrganization(entry.organization);
     setNotes(entry.notes);
+    setImages(entry.images ?? []);
     setView('form');
+  }
+
+  async function handlePickImage() {
+    const entryId = editingId ?? generateEntryId();
+    if (Platform.OS === 'web') {
+      // Web: abrir selector de archivos nativo
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true;
+      input.onchange = async (e: any) => {
+        const files: FileList = e.target.files;
+        if (!files?.length) return;
+        setUploadingImage(true);
+        try {
+          const urls: string[] = [];
+          for (const file of Array.from(files)) {
+            const objectUrl = URL.createObjectURL(file);
+            const url = await uploadImage(objectUrl, entryId);
+            urls.push(url);
+          }
+          setImages(prev => [...prev, ...urls]);
+        } catch (err: any) {
+          Alert.alert('Error', err.message ?? 'No se pudo subir la imagen');
+        } finally {
+          setUploadingImage(false);
+        }
+      };
+      input.click();
+    } else {
+      // Mobile: expo-image-picker (importado dinámicamente para no romper web)
+      try {
+        const ImagePicker = await import('expo-image-picker');
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permisos', 'Necesitamos acceso a tus fotos para subir imágenes.');
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsMultipleSelection: true,
+          quality: 0.8,
+        });
+        if (result.canceled) return;
+        setUploadingImage(true);
+        try {
+          const urls: string[] = [];
+          for (const asset of result.assets) {
+            const url = await uploadImage(asset.uri, entryId);
+            urls.push(url);
+          }
+          setImages(prev => [...prev, ...urls]);
+        } catch (err: any) {
+          Alert.alert('Error', err.message ?? 'No se pudo subir la imagen');
+        } finally {
+          setUploadingImage(false);
+        }
+      } catch (err: any) {
+        Alert.alert('Error', 'No se pudo abrir el selector de imágenes.');
+      }
+    }
+  }
+
+  function removeImage(url: string) {
+    setImages(prev => prev.filter(u => u !== url));
   }
 
   function handleSave() {
@@ -187,6 +270,7 @@ export default function InfoModal({
       contact,
       organization,
       notes,
+      images,
       createdAt:      editingId
         ? (entries.find(e => e.entryId === editingId)?.createdAt ?? new Date().toISOString())
         : new Date().toISOString(),
@@ -395,6 +479,32 @@ export default function InfoModal({
                   textAlignVertical="top"
                   autoCapitalize="sentences"
                 />
+
+                {/* Images */}
+                <Text style={styles.fieldLabel}>Fotos</Text>
+                <View style={styles.imageRow}>
+                  {images.map((url, idx) => (
+                    <View key={url} style={styles.thumbWrapper}>
+                      <Image source={{ uri: url }} style={styles.thumb} />
+                      <TouchableOpacity
+                        style={styles.thumbDelete}
+                        onPress={() => removeImage(url)}
+                      >
+                        <Text style={styles.thumbDeleteText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.addPhotoBtn}
+                    onPress={handlePickImage}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage
+                      ? <ActivityIndicator size="small" color={C.secondary} />
+                      : <Text style={styles.addPhotoBtnText}>＋ Foto</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
               </ScrollView>
 
               {/* Footer */}
@@ -540,6 +650,13 @@ const styles = StyleSheet.create({
   cardContact: { fontSize: 13, fontWeight: '600', color: C.text, marginBottom: 1 },
   cardOrg: { fontSize: 12, color: C.muted, marginBottom: 2 },
   cardNotes: { fontSize: 12, color: C.muted, lineHeight: 17 },
+  cardImageRow: { flexDirection: 'row', gap: 4, marginTop: 6 },
+  cardThumb: { width: 40, height: 40, borderRadius: 6, backgroundColor: C.border },
+  cardThumbMore: {
+    width: 40, height: 40, borderRadius: 6,
+    backgroundColor: C.border, alignItems: 'center', justifyContent: 'center',
+  },
+  cardThumbMoreText: { fontSize: 11, fontWeight: '700', color: C.muted },
   cardRight: { alignItems: 'center', justifyContent: 'center', paddingRight: 4 },
   cardWordBtn: {
     paddingHorizontal: 10, paddingVertical: 6,
@@ -606,4 +723,21 @@ const styles = StyleSheet.create({
     backgroundColor: C.primary, alignItems: 'center',
   },
   saveBtnText: { fontSize: 15, fontWeight: '700', color: C.white },
+
+  // Images
+  imageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  thumbWrapper: { position: 'relative' },
+  thumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: C.border },
+  thumbDelete: {
+    position: 'absolute', top: -6, right: -6,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: C.danger, alignItems: 'center', justifyContent: 'center',
+  },
+  thumbDeleteText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  addPhotoBtn: {
+    width: 72, height: 72, borderRadius: 8,
+    borderWidth: 1.5, borderColor: C.border, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: C.inputBg,
+  },
+  addPhotoBtnText: { fontSize: 13, fontWeight: '600', color: C.secondary },
 });

@@ -64,6 +64,7 @@ export interface VisitEntry {
   contact: string;
   organization: string;
   notes: string;
+  images: string[];           // URLs públicas en Supabase Storage
   createdAt: string;          // ISO timestamp
 }
 
