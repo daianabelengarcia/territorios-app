@@ -100,7 +100,7 @@ export default function ArgentinaScreen() {
   const StatsBar = () => (
     <View style={[styles.statsBar, isDesktop && styles.statsBarDesktop]}>
       <View style={styles.statItem}>
-        <Text style={styles.statNumber}>24</Text>
+        <Text style={styles.statNumber}>25</Text>
         <Text style={styles.statLabel}>Jurisdicciones</Text>
       </View>
       <View style={styles.statDivider} />
