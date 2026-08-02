@@ -37,13 +37,15 @@ function ArticleForm({ initial, onSave, onCancel }: ArticleFormProps) {
   const [link,  setLink]  = useState(initial?.link  ?? '');
   const [body,  setBody]  = useState(initial?.body  ?? '');
   const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert('Título requerido', 'Ingresá un título para el artículo.');
+      setError('El título es obligatorio.');
       return;
     }
     setSaving(true);
+    setError('');
     const article: Article = {
       articleId: initial?.articleId ?? generateId(),
       title:     title.trim(),
@@ -54,7 +56,8 @@ function ArticleForm({ initial, onSave, onCancel }: ArticleFormProps) {
     try {
       await onSave(article);
     } catch (e: any) {
-      Alert.alert('Error al guardar', e?.message ?? 'No se pudo guardar el artículo.');
+      console.error('Error al guardar artículo:', e);
+      setError(e?.message ?? 'No se pudo guardar el artículo.');
       setSaving(false);
     }
   };
@@ -80,6 +83,12 @@ function ArticleForm({ initial, onSave, onCancel }: ArticleFormProps) {
           }
         </TouchableOpacity>
       </View>
+
+      {!!error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>⚠ {error}</Text>
+        </View>
+      )}
 
       <ScrollView style={styles.formBody} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <Text style={styles.fieldLabel}>Título *</Text>
@@ -388,6 +397,11 @@ const styles = StyleSheet.create({
   saveBtn:      { backgroundColor: PRIMARY, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8 },
   saveBtnText:  { color: '#FFF', fontWeight: '700', fontSize: 14 },
   formBody:     { flex: 1, backgroundColor: '#F0F4FA' },
+  errorBanner: {
+    backgroundColor: '#FEE2E2', paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#FECACA',
+  },
+  errorBannerText: { color: '#B91C1C', fontSize: 13, fontWeight: '600' },
 
   fieldLabel: {
     fontSize: 11, fontWeight: '700', color: '#6B87A8',
