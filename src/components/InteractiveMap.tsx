@@ -36,12 +36,11 @@ function getFeatureColor(
       : FILTERED_OUT;
   }
 
-  // Sin filtro: color de la primera categoría de la entrada más reciente
+  // Sin filtro: color de la primera categoría VÁLIDA de la entrada más reciente
   const latest = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  const firstCat = latest.categories?.[0];
+  const firstCat = latest.categories?.find(cat => !!CATEGORY_COLORS[cat]);
   if (!firstCat) return NO_DATA;
   const col = CATEGORY_COLORS[firstCat];
-  if (!col) return NO_DATA; // categoría legacy que ya no existe
   return { fill: col.fill, stroke: col.stroke };
 }
 

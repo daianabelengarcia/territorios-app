@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   Alert, ActivityIndicator, useWindowDimensions,
@@ -28,6 +28,19 @@ export default function BuenosAiresScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<GeoFeature | null>(null);
   const [mapHeight, setMapHeight]       = useState(0);
+  const filterScrollRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const timer = setTimeout(() => {
+      const el = filterScrollRef.current?.getScrollableNode?.();
+      if (!el) return;
+      const handler = (e: WheelEvent) => { e.preventDefault(); el.scrollLeft += e.deltaY * 0.7; };
+      el.addEventListener('wheel', handler, { passive: false });
+      return () => el.removeEventListener('wheel', handler);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     getAllEntries('buenosaires').then(data => {
@@ -127,8 +140,9 @@ export default function BuenosAiresScreen() {
 
   const FilterBar = () => (
     <ScrollView
+      ref={filterScrollRef}
       horizontal
-      showsHorizontalScrollIndicator={false}
+      showsHorizontalScrollIndicator={Platform.OS === 'web'}
       style={styles.filterBar}
       contentContainerStyle={styles.filterContent}
     >

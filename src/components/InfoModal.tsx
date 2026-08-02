@@ -153,11 +153,11 @@ export default function InfoModal({
     setEditingId(entry.entryId);
     setConfirmingDelete(false);
     setDeleteError('');
-    // Handle legacy single-category entries
-    const cats = entry.categories?.length > 0
-      ? entry.categories
-      : [];
-    setSelectedCategories(cats);
+    // Filtrar categorías legacy que ya no existen en el mapa actual
+    const validCats = (entry.categories ?? []).filter(
+      c => availableCategories.includes(c as Category)
+    );
+    setSelectedCategories(validCats);
     setVisitDate(fmt(entry.visitDate));
     setContact(entry.contact);
     setOrganization(entry.organization);
