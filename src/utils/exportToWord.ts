@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   BorderStyle, Table, TableRow, TableCell, WidthType, AlignmentType,
+  ImageRun,
 } from 'docx';
 import { VisitEntry, MapType, Article } from '../types';
 
@@ -32,8 +33,66 @@ function field(label: string, value: string): Paragraph {
   });
 }
 
-function entrySection(entry: VisitEntry, mapType: MapType, index: number, total: number): Paragraph[] {
+async function fetchImageBuffer(url: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
+async function imagesParagraphs(images: string[]): Promise<(Paragraph | ImageRun)[]> {
+  if (!images?.length) return [];
+  const result: Paragraph[] = [];
+
+  if (Platform.OS === 'web') {
+    // En web podemos incrustar las imágenes
+    for (const url of images) {
+      const buf = await fetchImageBuffer(url);
+      if (!buf) continue;
+      try {
+        result.push(
+          new Paragraph({
+            spacing: { after: 80 },
+            children: [
+              new ImageRun({
+                data: buf,
+                transformation: { width: 300, height: 200 },
+                type: 'jpg',
+              }),
+            ],
+          })
+        );
+      } catch {
+        // Si falla la imagen, caer a URL
+        result.push(new Paragraph({
+          spacing: { after: 60 },
+          children: [new TextRun({ text: url, size: 18, color: '1565C0' })],
+        }));
+      }
+    }
+  } else {
+    // En mobile incluimos los URLs como texto
+    result.push(new Paragraph({
+      spacing: { after: 60 },
+      children: [new TextRun({ text: 'Fotos:', bold: true, size: 22 })],
+    }));
+    for (const url of images) {
+      result.push(new Paragraph({
+        spacing: { after: 40 },
+        children: [new TextRun({ text: `• ${url}`, size: 18, color: '1565C0' })],
+      }));
+    }
+  }
+
+  return result;
+}
+
+async function entrySection(entry: VisitEntry, mapType: MapType, index: number, total: number): Promise<Paragraph[]> {
   const cats = (entry.categories ?? []).join(' / ') || '—';
+  const imgs = await imagesParagraphs(entry.images ?? []);
   return [
     new Paragraph({
       text: `Actividad ${index + 1}${total > 1 ? ` de ${total}` : ''}`,
@@ -46,12 +105,20 @@ function entrySection(entry: VisitEntry, mapType: MapType, index: number, total:
     field('Contacto', entry.contact),
     field('Organización', entry.organization),
     field('Notas', entry.notes),
+    ...(imgs.length > 0
+      ? [new Paragraph({ children: [new TextRun({ text: 'Fotos:', bold: true, size: 22 })], spacing: { before: 120, after: 80 } }), ...imgs]
+      : []
+    ),
   ];
 }
 
-function buildDocument(entries: VisitEntry[], title: string, mapType: MapType): Document {
+async function buildDocument(entries: VisitEntry[], title: string, mapType: MapType): Promise<Document> {
   const sorted = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const timestamp = new Date().toLocaleDateString('es-AR');
+
+  const sections = await Promise.all(
+    sorted.map((e, i) => entrySection(e, mapType, i, sorted.length))
+  );
 
   const children: Paragraph[] = [
     new Paragraph({
@@ -63,7 +130,7 @@ function buildDocument(entries: VisitEntry[], title: string, mapType: MapType): 
       children: [new TextRun({ text: `Exportado el ${timestamp}`, italics: true, size: 20, color: '666666' })],
       spacing: { after: 320 },
     }),
-    ...sorted.flatMap((e, i) => entrySection(e, mapType, i, sorted.length)),
+    ...sections.flat(),
   ];
 
   return new Document({
@@ -105,7 +172,7 @@ export async function exportEntryToWord(entry: VisitEntry, mapType: MapType): Pr
   const safe = safeFileName(entry.territoryName);
   const fileName = `Territorios_${safe}_${timestamp}.docx`;
   const title = entry.territoryName;
-  const doc = buildDocument([entry], title, mapType);
+  const doc = await buildDocument([entry], title, mapType);
   await downloadDoc(doc, fileName);
 }
 
@@ -190,6 +257,6 @@ export async function exportTerritoryToWord(
   const safe = safeFileName(territoryName);
   const fileName = `Territorios_${safe}_completo_${timestamp}.docx`;
   const title = `Actividades en ${territoryName}`;
-  const doc = buildDocument(entries, title, mapType);
+  const doc = await buildDocument(entries, title, mapType);
   await downloadDoc(doc, fileName);
 }
