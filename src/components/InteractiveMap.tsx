@@ -81,6 +81,7 @@ export default function InteractiveMap({
   const [loading, setLoading]   = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [vb, setVb]             = useState<VB>({ x: 0, y: 0, w: width, h: height });
+  const [tooltip, setTooltip]   = useState<{ name: string; x: number; y: number } | null>(null);
 
   const vbRef       = useRef<VB>(vb);
   const featuresRef = useRef<GeoFeature[]>([]);
@@ -148,21 +149,37 @@ export default function InteractiveMap({
       webMouse.current = { dragging: true, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY };
     },
     onMouseMove: (e: any) => {
-      if (!webMouse.current.dragging) return;
-      const dx = e.clientX - webMouse.current.lastX;
-      const dy = e.clientY - webMouse.current.lastY;
-      webMouse.current.lastX = e.clientX;
-      webMouse.current.lastY = e.clientY;
+      const rect = e.currentTarget?.getBoundingClientRect?.() ?? { left: 0, top: 0 };
       const W = widthRef.current, H = heightRef.current;
       const cv = vbRef.current;
-      if (cv.w >= W * 0.99) return;
-      const nv: VB = {
-        ...cv,
-        x: Math.max(0, Math.min(W - cv.w, cv.x - (dx / W) * cv.w)),
-        y: Math.max(0, Math.min(H - cv.h, cv.y - (dy / H) * cv.h)),
-      };
-      vbRef.current = nv;
-      setVb(nv);
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (webMouse.current.dragging) {
+        const dx = e.clientX - webMouse.current.lastX;
+        const dy = e.clientY - webMouse.current.lastY;
+        webMouse.current.lastX = e.clientX;
+        webMouse.current.lastY = e.clientY;
+        if (cv.w >= W * 0.99) return;
+        const nv: VB = {
+          ...cv,
+          x: Math.max(0, Math.min(W - cv.w, cv.x - (dx / W) * cv.w)),
+          y: Math.max(0, Math.min(H - cv.h, cv.y - (dy / H) * cv.h)),
+        };
+        vbRef.current = nv;
+        setVb(nv);
+        setTooltip(null);
+      } else {
+        // Hover: hit-test para tooltip
+        const svgX = cv.x + (mouseX / W) * cv.w;
+        const svgY = cv.y + (mouseY / H) * cv.h;
+        const hit = findFeatureAt(svgX, svgY, featuresRef.current);
+        if (hit) {
+          setTooltip({ name: hit.name, x: mouseX, y: mouseY });
+        } else {
+          setTooltip(null);
+        }
+      }
     },
     onMouseUp: (e: any) => {
       const dx = Math.abs(e.clientX - webMouse.current.startX);
@@ -178,7 +195,7 @@ export default function InteractiveMap({
         if (hit) onPressRef.current(hit);
       }
     },
-    onMouseLeave: () => { webMouse.current.dragging = false; },
+    onMouseLeave: () => { webMouse.current.dragging = false; setTooltip(null); },
 
     // ── Touch (mobile browser) ──────────────────────────────────────────────
     onTouchStart: (e: any) => {
@@ -413,6 +430,21 @@ export default function InteractiveMap({
         })}
       </Svg>
 
+      {isWeb && tooltip && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.tooltip,
+            {
+              left: tooltip.x + 14,
+              top: tooltip.y - 36,
+            },
+          ]}
+        >
+          <Text style={styles.tooltipText}>{tooltip.name}</Text>
+        </View>
+      )}
+
       {isZoomed && (
         <TouchableOpacity
           style={styles.resetBtn}
@@ -460,6 +492,25 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF4FB', borderRadius: 12 },
   loadingText: { marginTop: 10, fontSize: 13, color: '#003366' },
   errorText: { fontSize: 13, color: '#CC0000', textAlign: 'center', paddingHorizontal: 16 },
+  tooltip: {
+    position: 'absolute',
+    backgroundColor: 'rgba(10, 30, 60, 0.88)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    maxWidth: 220,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  tooltipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
   resetBtn: {
     position: 'absolute', top: 8, right: 8,
     backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 20,
